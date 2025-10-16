@@ -215,20 +215,23 @@ def bootstrap_demo_data() -> bool:
         session.flush()
 
         global_module = CourseModule(course_id=global_course.id, title="Welcome to PMCK", order_index=1)
+        local_module = CourseModule(course_id=local_course.id, title="Machine Prep", order_index=1)
+        session.add_all([global_module, local_module])
+        session.flush()
+
         global_lesson = Lesson(
             module_id=global_module.id,
             title="Our Promise",
             content="We deliver consistent hospitality with local flair across every PMCK brand.",
             order_index=1,
         )
-        local_module = CourseModule(course_id=local_course.id, title="Machine Prep", order_index=1)
         local_lesson = Lesson(
             module_id=local_module.id,
             title="Dial-In Checklist",
             content="Purge the group head, weigh the dose, time the shot, and log the results.",
             order_index=1,
         )
-        session.add_all([global_module, global_lesson, local_module, local_lesson])
+        session.add_all([global_lesson, local_lesson])
 
         local_course.audience_rules.append(
             CourseAudienceRule(
