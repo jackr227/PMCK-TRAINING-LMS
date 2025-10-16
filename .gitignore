@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+pmck_training.db
+pmck_training.db-journal
+.venv/
