@@ -75,7 +75,11 @@ class Brand(Base):
     stores = relationship("Store", back_populates="brand", cascade="all, delete-orphan")
     users = relationship("User", back_populates="brand")
     flags = relationship("Flag", back_populates="brand", cascade="all, delete-orphan")
-    courses = relationship("Course", back_populates="brand")
+    courses = relationship(
+        "Course",
+        back_populates="brand",
+        foreign_keys="Course.brand_id",
+    )
 
 
 class Store(Base):
