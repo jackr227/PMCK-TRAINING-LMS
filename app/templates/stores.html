@@ -1,48 +1,131 @@
 {% extends "base.html" %}
-{% block content %}
-<h2>Stores</h2>
-<p>Stores keep Operators, Trainers, and Trainees scoped to the locations they manage. Switch brands using the header drop-down to review another network.</p>
-{% if stores %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Code</th>
-                <th>Region</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for store in stores %}
-                <tr>
-                    <td>{{ store.name }}</td>
-                    <td>{{ store.code }}</td>
-                    <td>{{ store.region or '—' }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>No stores for this scope yet.</p>
-{% endif %}
 
-{% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN] %}
-    <h2 style="margin-top:2.5rem;">Add a store</h2>
-    <form method="post" action="/ui/stores/create">
-        <label for="name">Store name</label>
-        <input id="name" name="name" required />
-        <label for="code">Store code</label>
-        <input id="code" name="code" required />
-        <label for="region">Region / province</label>
-        <input id="region" name="region" />
-        {% if available_brands and available_brands|length > 0 %}
-            <label for="brand_id">Brand</label>
-            <select id="brand_id" name="brand_id">
-                {% for brand in available_brands %}
-                    <option value="{{ brand.id }}" {% if active_brand and brand.id == active_brand.id %}selected{% endif %}>{{ brand.name }}</option>
+{% block hero %}
+<section class="page-hero">
+    <div>
+        <p class="eyebrow">Store governance</p>
+        <h1>Map regions, operators, and training scopes</h1>
+        <p>Every store inherits the right branding, managers, and learner roster. Showcase how PMCK Training keeps global standards consistent while empowering local leaders.</p>
+    </div>
+    <div class="hero-metrics">
+        <div class="hero-metric">
+            <div class="label">Stores in view</div>
+            <div class="value">{{ stores|length }}</div>
+            <div class="hint">Scoped to your permissions</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Regions</div>
+            <div class="value">{{ region_summary|length }}</div>
+            <div class="hint">Regional coverage across this role</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Active members</div>
+            <div class="value">{{ store_cards|sum(attribute='active_members') if store_cards else 0 }}</div>
+            <div class="hint">Team members tied to these stores</div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section>
+    <div class="section-header">
+        <h2>Store network</h2>
+        <span class="badge">Brand context: {{ active_brand.name if active_brand else 'All brands' }}</span>
+    </div>
+    {% if store_cards %}
+        <div class="summary-grid">
+            {% for entry in store_cards %}
+                {% set store = entry.store %}
+                <div class="card" style="display:flex;flex-direction:column;gap:1rem;">
+                    <div>
+                        <div class="section-header">
+                            <h3 style="margin-bottom:0.2rem;">{{ store.name }}</h3>
+                            <span class="tag">{{ store.code }}</span>
+                        </div>
+                        <div class="store-badge">Region: {{ store.region or 'Unassigned' }}</div>
+                        <div class="store-badge">Brand: {{ store.brand.name if store.brand else '—' }}</div>
+                        <div class="store-badge">{{ entry.active_members }} active member{{ 's' if entry.active_members != 1 else '' }}</div>
+                    </div>
+                    {% if entry.role_breakdown %}
+                        <div class="role-pills">
+                            {% for bucket in entry.role_breakdown %}
+                                <span class="role-pill">{{ bucket.label }} • {{ bucket.count }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No stores are visible for this role. Switch brands or add a store below.</p>
+    {% endif %}
+</section>
+
+<section class="split-layout">
+    <div class="card">
+        <div class="section-header">
+            <h3>Regional overview</h3>
+            <span class="badge">Store count by region</span>
+        </div>
+        {% if region_summary %}
+            <div class="timeline">
+                {% for region in region_summary %}
+                    <div class="timeline-item">
+                        <strong>{{ region.region }}</strong>
+                        <div class="store-badge">{{ region.count }} store{{ 's' if region.count != 1 else '' }}</div>
+                    </div>
                 {% endfor %}
-            </select>
+            </div>
+        {% else %}
+            <p>Assign regions to stores to see distribution insights here.</p>
         {% endif %}
-        <button type="submit">Create store</button>
-    </form>
+    </div>
+    <div class="card">
+        <h3>Store management tips</h3>
+        <p class="store-badge">Operators and trainers only see stores they own. Area Managers can span multiple locations.</p>
+        <ul>
+            <li>Map every store to the right brand for correct theming.</li>
+            <li>Use store scopes when creating courses to focus on local actions.</li>
+            <li>Approvals flow through Operators/Trainers for new memberships.</li>
+        </ul>
+    </div>
+</section>
+
+{% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER, UserRole.OPERATOR] %}
+<section>
+    <div class="section-header">
+        <h2>Add a store</h2>
+        <span class="badge">Respecting brand permissions</span>
+    </div>
+    <div class="form-card">
+        <form method="post" action="/ui/stores/create">
+            <div class="form-grid">
+                <div>
+                    <label for="name">Name</label>
+                    <input id="name" name="name" required />
+                </div>
+                <div>
+                    <label for="code">Code</label>
+                    <input id="code" name="code" required />
+                </div>
+                <div>
+                    <label for="region">Region / Province</label>
+                    <input id="region" name="region" placeholder="e.g. Downtown" />
+                </div>
+            </div>
+            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN] %}
+                <label for="brand_id">Brand</label>
+                <select id="brand_id" name="brand_id">
+                    <option value="">Use selected brand</option>
+                    {% for brand in available_brands %}
+                        <option value="{{ brand.id }}">{{ brand.name }}</option>
+                    {% endfor %}
+                </select>
+            {% endif %}
+            <button type="submit">Create store</button>
+        </form>
+    </div>
+</section>
 {% endif %}
 {% endblock %}

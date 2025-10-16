@@ -1,98 +1,215 @@
 {% extends "base.html" %}
+
+{% block hero %}
+<section class="page-hero">
+    <div>
+        <p class="eyebrow">Live operations</p>
+        <h1>{{ active_brand.name if active_brand else "PMCK Training" }} command center</h1>
+        <p>Keep every brand, area, and store on track. Review personal progress, scan team coverage, and dive into recent activity without leaving this screen.</p>
+        <div class="role-pills" style="margin-top:1.1rem;">
+            <span class="role-pill">{{ active_user.role.value.replace('_', ' ')|title }}</span>
+            <span class="role-pill">{{ managed_users|length }} people in scope</span>
+            <span class="role-pill">{{ stores|length }} stores monitored</span>
+        </div>
+    </div>
+    <div class="hero-metrics">
+        <div class="hero-metric">
+            <div class="label">My completion</div>
+            <div class="value">{{ completion_rate }}%</div>
+            <div class="hint">{{ completed_assignments|length }} of {{ completed_assignments|length + pending_assignments|length }} assignments complete</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Team completion</div>
+            <div class="value">{{ team_completion_rate }}%</div>
+            <div class="hint">{{ team_required_total }} required courses being tracked</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Required coverage</div>
+            <div class="value">{{ team_required_completion_rate }}%</div>
+            <div class="hint">{{ overdue_assignments|length }} overdue items in my queue</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Stores in view</div>
+            <div class="value">{{ stores|length }}</div>
+            <div class="hint">{{ store_progress|length }} stores reporting coverage</div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
 {% block content %}
-<h2>Overview</h2>
-<div class="card-grid">
-    <div class="card">
-        <h3>Assignments due</h3>
-        <p style="font-size:2.6rem;margin:0;">{{ pending_assignments|length }}</p>
-        <p style="margin-top:0.4rem;">Keep learners on track by nudging overdue or required modules.</p>
+<section>
+    <div class="section-header">
+        <h2>Momentum highlights</h2>
+        <span class="badge">{{ team_assignment_total }} assignments across my scope</span>
     </div>
-    <div class="card">
-        <h3>Completed</h3>
-        <p style="font-size:2.6rem;margin:0;">{{ completed_assignments|length }}</p>
-        <p style="margin-top:0.4rem;">Assignments finished by {{ active_user.display_name or active_user.first_name }}.</p>
+    <div class="summary-grid">
+        <div class="stat-card">
+            <div class="eyebrow">My queue</div>
+            <strong>{{ pending_assignments|length }}</strong>
+            <p>Assignments awaiting my action. {% if overdue_assignments %}<strong>{{ overdue_assignments|length }}</strong> overdue — prioritise these first.{% else %}You are fully on track right now!{% endif %}</p>
+        </div>
+        <div class="stat-card">
+            <div class="eyebrow">Required focus</div>
+            <strong>{{ required_assignments|length }}</strong>
+            <p>{{ required_completion_rate }}% of personal mandatory training complete. Keep pushing to stay compliant.</p>
+        </div>
+        <div class="stat-card">
+            <div class="eyebrow">Team coverage</div>
+            <strong>{{ team_required_completion_rate }}%</strong>
+            <p>Required courses completed across the people I manage. Use targeted nudges to lift lagging stores.</p>
+        </div>
+        <div class="stat-card">
+            <div class="eyebrow">Stores monitored</div>
+            <strong>{{ stores|length }}</strong>
+            <p>Every store I can see is represented below with real-time coverage and team make-up.</p>
+        </div>
     </div>
-    <div class="card">
-        <h3>Team in scope</h3>
-        <p style="font-size:2.6rem;margin:0;">{{ managed_users|length }}</p>
-        <p style="margin-top:0.4rem;">Users you can see and manage with this role.</p>
-    </div>
-    <div class="card">
-        <h3>Stores</h3>
-        <p style="font-size:2.6rem;margin:0;">{{ stores|length }}</p>
-        <p style="margin-top:0.4rem;">Store locations linked to your permissions.</p>
-    </div>
-</div>
+</section>
 
-<h2 style="margin-top:2.5rem;">My assignments</h2>
-{% if pending_assignments %}
-    <table>
-        <thead>
-            <tr>
-                <th>Course</th>
-                <th>Status</th>
-                <th>Due</th>
-                <th>Required</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for assignment in pending_assignments %}
-                <tr>
-                    <td>{{ assignment.course.title }}</td>
-                    <td>{{ assignment.status.value.replace('_', ' ')|title }}</td>
-                    <td>{% if assignment.due_date %}{{ assignment.due_date }}{% else %}<em>None</em>{% endif %}</td>
-                    <td>{% if assignment.required %}Yes{% else %}No{% endif %}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>No outstanding assignments. Great job!</p>
-{% endif %}
+<section class="split-layout">
+    <div class="card">
+        <div class="section-header">
+            <h3>My assignments</h3>
+            {% if overdue_assignments %}<span class="badge" style="background:rgba(220,38,38,0.12);color:#b91c1c;">{{ overdue_assignments|length }} overdue</span>{% endif %}
+        </div>
+        {% if pending_assignments or completed_assignments %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Course</th>
+                        <th>Status</th>
+                        <th>Due</th>
+                        <th>Required</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for assignment in pending_assignments + completed_assignments %}
+                        <tr>
+                            <td>
+                                <strong>{{ assignment.course.title }}</strong><br />
+                                <span class="store-badge">{{ assignment.course.course_type.value|title }} course</span>
+                            </td>
+                            <td>{{ assignment.status.value.replace('_', ' ')|title }}</td>
+                            <td>
+                                {% if assignment.due_date %}
+                                    {{ assignment.due_date }}
+                                {% else %}
+                                    <span class="store-badge">No due date</span>
+                                {% endif %}
+                            </td>
+                            <td>{% if assignment.required %}<span class="tag">Required</span>{% else %}<span class="store-badge">Optional</span>{% endif %}</td>
+                            <td>
+                                {% if assignment.status != AssignmentStatus.COMPLETED %}
+                                    <form method="post" action="/ui/assignments/{{ assignment.id }}/complete" class="inline">
+                                        <button type="submit">Mark complete</button>
+                                    </form>
+                                {% else %}
+                                    <span class="badge" style="background:rgba(34,197,94,0.15);color:#15803d;">Completed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No assignments yet. Request a course from your trainer or operator to see the learning experience.</p>
+        {% endif %}
+    </div>
+    <div class="card">
+        <div class="section-header">
+            <h3>Upcoming deadlines</h3>
+            <span class="badge">Next 7 days</span>
+        </div>
+        {% if due_soon_assignments %}
+            <div class="timeline">
+                {% for assignment in due_soon_assignments %}
+                    <div class="timeline-item">
+                        <strong>{{ assignment.course.title }}</strong>
+                        <div class="store-badge">Due {{ assignment.due_date }} • {% if assignment.required %}Required{% else %}Optional{% endif %}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>You have no deadlines in the next week. Use this time to create courses or review reports.</p>
+        {% endif %}
+        {% if audits %}
+            <h3 style="margin-top:2rem;">Recent activity</h3>
+            <div class="timeline">
+                {% for entry in audits %}
+                    <div class="timeline-item">
+                        <strong>{{ entry.action|title }}</strong>
+                        <div class="store-badge">{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }} • {{ entry.entity_type }} #{{ entry.entity_id }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p style="margin-top:2rem;">Activity feeds appear here for admins to audit changes across brands.</p>
+        {% endif %}
+    </div>
+</section>
 
-<h2 style="margin-top:2.5rem;">People in my scope</h2>
-{% if managed_users %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for person in managed_users %}
-                <tr>
-                    <td>{{ person.display_name or (person.first_name + ' ' + person.last_name) }}</td>
-                    <td>{{ person.email }}</td>
-                    <td>{{ person.role.value.replace('_', ' ')|title }}</td>
-                </tr>
+<section class="split-layout">
+    <div class="card">
+        <div class="section-header">
+            <h3>Store coverage</h3>
+            <span class="badge">Completion by location</span>
+        </div>
+        {% if store_progress %}
+            {% for snapshot in store_progress %}
+                <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.1rem;">
+                    <div style="flex:1;">
+                        <strong>{{ snapshot.store.name }}</strong>
+                        <div class="store-badge">{{ snapshot.assignments }} assignments • {{ snapshot.members }} team members</div>
+                        <div class="progress" style="margin-top:0.5rem;">
+                            <span style="width: {{ snapshot.percent }}%;"></span>
+                        </div>
+                    </div>
+                    <div style="width:60px;text-align:right;font-weight:700;">{{ snapshot.percent }}%</div>
+                </div>
             {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>You do not manage any team members yet.</p>
-{% endif %}
-
-{% if audits %}
-    <h2 style="margin-top:2.5rem;">Recent activity</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>When</th>
-                <th>User</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in audits %}
-                <tr>
-                    <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                    <td>User #{{ entry.actor_id }}</td>
-                    <td>{{ entry.action }} — {{ entry.entity_type }} #{{ entry.entity_id }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% endif %}
+        {% else %}
+            <p>No assignments across your stores yet. Start by creating a local course and assigning it to a store team.</p>
+        {% endif %}
+    </div>
+    <div class="card">
+        <div class="section-header">
+            <h3>Role mix</h3>
+            <span class="badge">Team composition</span>
+        </div>
+        {% if role_breakdown %}
+            <div class="role-pills" style="margin-bottom:1.4rem;">
+                {% for bucket in role_breakdown %}
+                    <span class="role-pill">{{ bucket.label }} • {{ bucket.count }}</span>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>You do not manage anyone yet. Add teammates from the Users area to build your network.</p>
+        {% endif %}
+        <h3 style="margin-top:1.5rem;">People directory</h3>
+        {% if managed_users %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for person in managed_users %}
+                        <tr>
+                            <td>{{ person.display_name or (person.first_name + ' ' + person.last_name) }}</td>
+                            <td>{{ person.email }}</td>
+                            <td>{{ person.role.value.replace('_', ' ')|title }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No team members found in your scope yet.</p>
+        {% endif %}
+    </div>
+</section>
 {% endblock %}

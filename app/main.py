@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from collections import Counter
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -52,6 +53,7 @@ app = FastAPI(title="PMCK Training LMS")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 templates.env.globals["UserRole"] = UserRole
 templates.env.globals["AssignmentStatus"] = AssignmentStatus
+templates.env.globals["CourseType"] = CourseType
 
 app.add_middleware(SessionMiddleware, secret_key="pmck-training-demo-ui")
 
@@ -763,7 +765,48 @@ def dashboard(request: Request, session: Session = Depends(get_session)):
     )
     pending_assignments = [a for a in assignments if a.status != AssignmentStatus.COMPLETED]
     completed_assignments = [a for a in assignments if a.status == AssignmentStatus.COMPLETED]
+    required_assignments = [a for a in assignments if a.required]
+    today = date.today()
+    overdue_assignments = [
+        assignment
+        for assignment in pending_assignments
+        if assignment.due_date and assignment.due_date < today
+    ]
+    due_window = today + timedelta(days=7)
+    due_soon = sorted(
+        [
+            assignment
+            for assignment in pending_assignments
+            if assignment.due_date and today <= assignment.due_date <= due_window
+        ],
+        key=lambda a: a.due_date,
+    )
+    completion_rate = (
+        int(round((len(completed_assignments) / len(assignments)) * 100))
+        if assignments
+        else 0
+    )
+    required_completion_rate = (
+        int(
+            round(
+                (
+                    len(
+                        [
+                            assignment
+                            for assignment in required_assignments
+                            if assignment.status == AssignmentStatus.COMPLETED
+                        ]
+                    )
+                    / len(required_assignments)
+                )
+                * 100
+            )
+        )
+        if required_assignments
+        else 0
+    )
     managed_users = users_in_scope(user, session)
+    managed_user_ids = [member.id for member in managed_users]
     stores = []
     if store_ids:
         stores = list(session.scalars(select(Store).where(Store.id.in_(store_ids))).all())
@@ -773,14 +816,93 @@ def dashboard(request: Request, session: Session = Depends(get_session)):
         audits = list(session.scalars(audit_query).all())
     else:
         audits = []
+    team_assignments = []
+    if managed_user_ids:
+        team_assignments = list(
+            session.scalars(
+                select(CourseAssignment).where(CourseAssignment.user_id.in_(managed_user_ids))
+            ).all()
+        )
+    team_total = len(team_assignments)
+    team_completed = len([a for a in team_assignments if a.status == AssignmentStatus.COMPLETED])
+    team_required_assignments = [assignment for assignment in team_assignments if assignment.required]
+    team_completion_rate = int(round((team_completed / team_total) * 100)) if team_total else 0
+    team_required_completion_rate = (
+        int(
+            round(
+                (
+                    len(
+                        [
+                            assignment
+                            for assignment in team_required_assignments
+                            if assignment.status == AssignmentStatus.COMPLETED
+                        ]
+                    )
+                    / len(team_required_assignments)
+                )
+                * 100
+            )
+        )
+        if team_required_assignments
+        else 0
+    )
+    role_breakdown_counter = Counter(member.role for member in managed_users)
+    role_breakdown = [
+        {
+            "label": role.value.replace("_", " ").title(),
+            "count": count,
+        }
+        for role, count in sorted(
+            role_breakdown_counter.items(), key=lambda item: (-item[1], item[0].value)
+        )
+    ]
+    store_progress: List[Dict[str, object]] = []
+    if stores:
+        for store in stores:
+            active_memberships = [
+                membership
+                for membership in store.memberships
+                if membership.status == MembershipStatus.ACTIVE
+            ]
+            member_ids = [membership.user_id for membership in active_memberships]
+            store_assignments = [
+                assignment for assignment in team_assignments if assignment.user_id in member_ids
+            ]
+            completed = len(
+                [assignment for assignment in store_assignments if assignment.status == AssignmentStatus.COMPLETED]
+            )
+            percent = int(
+                round((completed / len(store_assignments)) * 100)
+            ) if store_assignments else 0
+            store_progress.append(
+                {
+                    "store": store,
+                    "members": len(active_memberships),
+                    "assignments": len(store_assignments),
+                    "completed": completed,
+                    "percent": percent,
+                }
+            )
+    store_progress.sort(key=lambda entry: entry["percent"], reverse=True)
     context.update(
         {
             "pending_assignments": pending_assignments,
             "completed_assignments": completed_assignments,
+            "required_assignments": required_assignments,
+            "overdue_assignments": overdue_assignments,
+            "due_soon_assignments": due_soon,
+            "completion_rate": completion_rate,
+            "required_completion_rate": required_completion_rate,
+            "team_completion_rate": team_completion_rate,
+            "team_required_completion_rate": team_required_completion_rate,
             "managed_users": managed_users,
             "stores": stores,
             "brand_context": brand_context,
             "audits": audits,
+            "role_breakdown": role_breakdown,
+            "store_progress": store_progress,
+            "team_assignment_total": team_total,
+            "team_required_total": len(team_required_assignments),
         }
     )
     return templates.TemplateResponse("dashboard.html", context)
@@ -800,7 +922,18 @@ def manage_brands(request: Request, session: Session = Depends(get_session)):
     if user.role == UserRole.ADMIN and user.brand_id:
         brand_query = brand_query.where(Brand.id == user.brand_id)
     brands = list(session.scalars(brand_query).all())
-    context.update({"brands": brands})
+    brand_cards = [
+        {
+            "brand": brand,
+            "store_total": len(brand.stores),
+        }
+        for brand in brands
+    ]
+    brand_stats = {
+        "total_brands": len(brands),
+        "total_stores": sum(card["store_total"] for card in brand_cards),
+    }
+    context.update({"brands": brands, "brand_cards": brand_cards, "brand_stats": brand_stats})
     return templates.TemplateResponse("brands.html", context)
 
 
@@ -855,7 +988,42 @@ def manage_stores(request: Request, session: Session = Depends(get_session)):
     else:
         store_query = store_query.where(False)
     stores = list(session.scalars(store_query.order_by(Store.name)).all())
-    context.update({"stores": stores, "active_brand": active_brand})
+    region_counter = Counter((store.region or "Unassigned") for store in stores)
+    region_summary = [
+        {"region": region, "count": count}
+        for region, count in sorted(region_counter.items(), key=lambda item: (-item[1], item[0]))
+    ]
+    store_cards = []
+    for store in stores:
+        active_memberships = [
+            membership
+            for membership in store.memberships
+            if membership.status == MembershipStatus.ACTIVE
+        ]
+        role_counts = Counter(membership.role for membership in active_memberships)
+        store_cards.append(
+            {
+                "store": store,
+                "active_members": len(active_memberships),
+                "role_breakdown": [
+                    {
+                        "label": role.value.replace("_", " ").title(),
+                        "count": count,
+                    }
+                    for role, count in sorted(
+                        role_counts.items(), key=lambda item: (-item[1], item[0].value)
+                    )
+                ],
+            }
+        )
+    context.update(
+        {
+            "stores": stores,
+            "active_brand": active_brand,
+            "store_cards": store_cards,
+            "region_summary": region_summary,
+        }
+    )
     return templates.TemplateResponse("stores.html", context)
 
 
@@ -915,11 +1083,33 @@ def manage_users(request: Request, session: Session = Depends(get_session)):
     else:
         brand_context = get_ui_brand_context(request, user, session)
         brands = [brand_context.get("active_brand")] if brand_context.get("active_brand") else []
+    role_counter = Counter(user.role for user in visible_users)
+    membership_counter = Counter(
+        membership.status for user in visible_users for membership in user.memberships
+    )
     context.update(
         {
             "users": visible_users,
             "stores": stores,
             "brands": brands,
+            "role_breakdown": [
+                {
+                    "label": role.value.replace("_", " ").title(),
+                    "count": count,
+                }
+                for role, count in sorted(
+                    role_counter.items(), key=lambda item: (-item[1], item[0].value)
+                )
+            ],
+            "membership_status_breakdown": [
+                {
+                    "label": status.value.replace("_", " ").title(),
+                    "count": count,
+                }
+                for status, count in sorted(
+                    membership_counter.items(), key=lambda item: (-item[1], item[0].value)
+                )
+            ],
         }
     )
     return templates.TemplateResponse("users.html", context)
@@ -1009,11 +1199,26 @@ def manage_courses(request: Request, session: Session = Depends(get_session)):
         store_ids = get_store_scope(user, session)
         if store_ids:
             stores = list(session.scalars(select(Store).where(Store.id.in_(store_ids))).all())
+    course_type_counts = Counter(course.course_type for course in courses)
+    course_stats = {
+        "total": len(courses),
+        "global": course_type_counts.get(CourseType.GLOBAL, 0),
+        "local": course_type_counts.get(CourseType.LOCAL, 0),
+        "required": len([course for course in courses if course.required]),
+        "modules": sum(len(course.modules) for course in courses),
+        "lessons": sum(len(module.lessons) for course in courses for module in course.modules),
+        "scoped": len([course for course in courses if course.audience_rules]),
+    }
+    due_soon_courses = sorted(
+        [course for course in courses if course.due_date], key=lambda course: course.due_date
+    )[:4]
     context.update(
         {
             "courses": courses,
             "assignable_users": assignable_users,
             "stores": stores,
+            "course_stats": course_stats,
+            "due_soon_courses": due_soon_courses,
         }
     )
     return templates.TemplateResponse("courses.html", context)
@@ -1186,7 +1391,49 @@ def my_learning(request: Request, session: Session = Depends(get_session)):
             .order_by(CourseAssignment.due_date.is_(None), CourseAssignment.due_date)
         ).all()
     )
-    context.update({"assignments": assignments})
+    status_counter = Counter(assignment.status for assignment in assignments)
+    required_assignments = [assignment for assignment in assignments if assignment.required]
+    completed_count = status_counter.get(AssignmentStatus.COMPLETED, 0)
+    completion_ratio = int(round((completed_count / len(assignments)) * 100)) if assignments else 0
+    required_completion_ratio = (
+        int(
+            round(
+                (
+                    len(
+                        [
+                            assignment
+                            for assignment in required_assignments
+                            if assignment.status == AssignmentStatus.COMPLETED
+                        ]
+                    )
+                    / len(required_assignments)
+                )
+                * 100
+            )
+        )
+        if required_assignments
+        else 0
+    )
+    next_due = next((assignment for assignment in assignments if assignment.due_date), None)
+    context.update(
+        {
+            "assignments": assignments,
+            "assignment_status_counts": [
+                {
+                    "label": status.value.replace("_", " ").title(),
+                    "count": count,
+                }
+                for status, count in sorted(
+                    status_counter.items(), key=lambda item: (-item[1], item[0].value)
+                )
+            ],
+            "required_assignments": required_assignments,
+            "completion_ratio": completion_ratio,
+            "required_completion_ratio": required_completion_ratio,
+            "next_due_assignment": next_due,
+            "completed_count": completed_count,
+        }
+    )
     return templates.TemplateResponse("learning.html", context)
 
 

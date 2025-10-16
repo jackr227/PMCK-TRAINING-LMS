@@ -1,39 +1,93 @@
 {% extends "base.html" %}
+
+{% block hero %}
+<section class="page-hero">
+    <div>
+        <p class="eyebrow">My learning</p>
+        <h1>Stay ahead of required training</h1>
+        <p>Every assignment reflects the same permissions and due dates your trainees will experience. Use this view to demo the learner journey across brands and stores.</p>
+    </div>
+    <div class="hero-metrics">
+        <div class="hero-metric">
+            <div class="label">Total assignments</div>
+            <div class="value">{{ assignments|length }}</div>
+            <div class="hint">Across all brands you can access</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Completion</div>
+            <div class="value">{{ completion_ratio }}%</div>
+            <div class="hint">{{ completed_count }} completed so far</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Required coverage</div>
+            <div class="value">{{ required_completion_ratio }}%</div>
+            <div class="hint">{{ required_assignments|length }} required courses</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Next due</div>
+            <div class="value">{% if next_due_assignment and next_due_assignment.due_date %}{{ next_due_assignment.due_date }}{% else %}None{% endif %}</div>
+            <div class="hint">{% if next_due_assignment %}{{ next_due_assignment.course.title }}{% else %}No deadlines scheduled{% endif %}</div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
 {% block content %}
-<h2>My learning</h2>
-<p>This view is exactly what trainees see when they sign in. Knock out courses and mark them complete as you finish.</p>
-{% if assignments %}
-    <table>
-        <thead>
-            <tr>
-                <th>Course</th>
-                <th>Status</th>
-                <th>Due</th>
-                <th>Required</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
+<section>
+    <div class="section-header">
+        <h2>Assignment breakdown</h2>
+        <span class="badge">Live learner perspective</span>
+    </div>
+    {% if assignment_status_counts %}
+        <div class="summary-grid">
+            {% for bucket in assignment_status_counts %}
+                <div class="stat-card">
+                    <div class="eyebrow">{{ bucket.label }}</div>
+                    <strong>{{ bucket.count }}</strong>
+                    <p>{{ bucket.count }} assignment{{ 's' if bucket.count != 1 else '' }} currently marked as {{ bucket.label|lower }}.</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</section>
+
+<section>
+    <div class="section-header">
+        <h2>Course cards</h2>
+        <span class="badge">Mark items complete to simulate progress</span>
+    </div>
+    {% if assignments %}
+        <div class="summary-grid">
             {% for assignment in assignments %}
-                <tr>
-                    <td>{{ assignment.course.title }}</td>
-                    <td>{{ assignment.status.value.replace('_', ' ')|title }}</td>
-                    <td>{% if assignment.due_date %}{{ assignment.due_date }}{% else %}<em>None</em>{% endif %}</td>
-                    <td>{% if assignment.required %}Yes{% else %}No{% endif %}</td>
-                    <td>
+                <div class="card" style="display:flex;flex-direction:column;gap:1rem;">
+                    <div>
+                        <div class="section-header">
+                            <h3 style="margin-bottom:0.2rem;">{{ assignment.course.title }}</h3>
+                            {% if assignment.required %}<span class="tag">Required</span>{% else %}<span class="tag local">Optional</span>{% endif %}
+                        </div>
+                        <div class="store-badge">{{ assignment.course.course_type.value|title }} • {% if assignment.due_date %}Due {{ assignment.due_date }}{% else %}No due date{% endif %}</div>
+                        <p style="margin-top:0.8rem;">{{ assignment.course.summary }}</p>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:1rem;">
+                        <div style="flex:1;">
+                            <div class="progress">
+                                <span style="width: {% if assignment.status == AssignmentStatus.COMPLETED %}100{% elif assignment.status == AssignmentStatus.IN_PROGRESS %}66{% else %}35{% endif %}%;"></span>
+                            </div>
+                            <div class="store-badge" style="margin-top:0.4rem;">Status: {{ assignment.status.value.replace('_', ' ')|title }}</div>
+                        </div>
                         {% if assignment.status != AssignmentStatus.COMPLETED %}
                             <form method="post" action="/ui/assignments/{{ assignment.id }}/complete" class="inline">
                                 <button type="submit">Mark complete</button>
                             </form>
                         {% else %}
-                            <span style="font-weight:600;color:#16a34a;">Completed</span>
+                            <span class="badge" style="background:rgba(34,197,94,0.15);color:#15803d;">Completed</span>
                         {% endif %}
-                    </td>
-                </tr>
+                    </div>
+                </div>
             {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>No assignments yet. Ask an operator or trainer to assign a course.</p>
-{% endif %}
+        </div>
+    {% else %}
+        <p>No assignments yet. Ask an Operator or Trainer to assign a course to this account.</p>
+    {% endif %}
+</section>
 {% endblock %}

@@ -1,77 +1,153 @@
 {% extends "base.html" %}
-{% block content %}
-<h2>Users</h2>
-<p>Only the roles you are allowed to create appear below. Operators and Trainers can create store-level teammates, while Admins and Super Admins can add any role.</p>
-{% if users %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Brand</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for person in users %}
-                <tr>
-                    <td>{{ person.display_name or (person.first_name + ' ' + person.last_name) }}</td>
-                    <td>{{ person.email }}</td>
-                    <td>{{ person.role.value.replace('_', ' ')|title }}</td>
-                    <td>{% if person.brand %}{{ person.brand.name }}{% else %}<em>Cross-brand</em>{% endif %}</td>
-                </tr>
+
+{% block hero %}
+<section class="page-hero">
+    <div>
+        <p class="eyebrow">People & permissions</p>
+        <h1>Orchestrate Discord-style access for every role</h1>
+        <p>Create Super Admins, Admins, Area Managers, Operators, Trainers, and Trainees with scoped store memberships. This UI demonstrates how governance and autonomy coexist.</p>
+        <div class="role-pills" style="margin-top:1rem;">
+            <span class="role-pill">{{ users|length }} people in scope</span>
+            {% for bucket in role_breakdown %}
+                <span class="role-pill">{{ bucket.label }} • {{ bucket.count }}</span>
             {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>No users within this scope yet.</p>
-{% endif %}
+        </div>
+    </div>
+    <div class="hero-metrics">
+        <div class="hero-metric">
+            <div class="label">Total users</div>
+            <div class="value">{{ users|length }}</div>
+            <div class="hint">Filtered by your role</div>
+        </div>
+        <div class="hero-metric">
+            <div class="label">Membership states</div>
+            <div class="value">{{ membership_status_breakdown|length }}</div>
+            <div class="hint">Pending, active, and suspended coverage</div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="split-layout">
+    <div class="card">
+        <div class="section-header">
+            <h3>Role distribution</h3>
+            <span class="badge">People you can manage</span>
+        </div>
+        {% if role_breakdown %}
+            <div class="timeline">
+                {% for bucket in role_breakdown %}
+                    <div class="timeline-item">
+                        <strong>{{ bucket.label }}</strong>
+                        <div class="store-badge">{{ bucket.count }} person{{ 's' if bucket.count != 1 else '' }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No users yet. Add team members to see distribution.</p>
+        {% endif %}
+    </div>
+    <div class="card">
+        <div class="section-header">
+            <h3>Membership status</h3>
+            <span class="badge">Across store assignments</span>
+        </div>
+        {% if membership_status_breakdown %}
+            <div class="timeline">
+                {% for bucket in membership_status_breakdown %}
+                    <div class="timeline-item">
+                        <strong>{{ bucket.label }}</strong>
+                        <div class="store-badge">{{ bucket.count }} membership{{ 's' if bucket.count != 1 else '' }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No store memberships yet. Add users to stores to track activation.</p>
+        {% endif %}
+    </div>
+</section>
+
+<section>
+    <div class="section-header">
+        <h2>Directory</h2>
+        <span class="badge">Fully permissioned</span>
+    </div>
+    {% if users %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                    <tr>
+                        <td>{{ user.display_name or (user.first_name + ' ' + user.last_name) }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.role.value.replace('_', ' ')|title }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No users to display.</p>
+    {% endif %}
+</section>
 
 {% if active_user.role != UserRole.TRAINEE %}
-    <h2 style="margin-top:2.5rem;">Create a user</h2>
-    <form method="post" action="/ui/users/create">
-        <label for="first_name">First name</label>
-        <input id="first_name" name="first_name" required />
-        <label for="last_name">Last name</label>
-        <input id="last_name" name="last_name" required />
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email" required />
-        <label for="role">Role</label>
-        <select id="role" name="role">
-            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN] %}
-                <option value="super_admin" {% if active_user.role != UserRole.SUPER_ADMIN %}disabled{% endif %}>Super Admin</option>
-                <option value="admin">Admin</option>
+<section>
+    <div class="section-header">
+        <h2>Add a user</h2>
+        <span class="badge">Respects role creation rules</span>
+    </div>
+    <div class="form-card">
+        <form method="post" action="/ui/users/create">
+            <div class="form-grid">
+                <div>
+                    <label for="first_name">First name</label>
+                    <input id="first_name" name="first_name" required />
+                </div>
+                <div>
+                    <label for="last_name">Last name</label>
+                    <input id="last_name" name="last_name" required />
+                </div>
+                <div>
+                    <label for="email">Email</label>
+                    <input id="email" name="email" required />
+                </div>
+                <div>
+                    <label for="role">Role</label>
+                    <select id="role" name="role">
+                        {% for role in UserRole %}
+                            <option value="{{ role.value }}">{{ role.value.replace('_', ' ')|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            {% if brands %}
+                <label for="brand_id">Brand</label>
+                <select id="brand_id" name="brand_id">
+                    <option value="">Default brand</option>
+                    {% for brand in brands %}
+                        <option value="{{ brand.id }}">{{ brand.name }}</option>
+                    {% endfor %}
+                </select>
             {% endif %}
-            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER] %}
-                <option value="area_manager">Area Manager</option>
+            {% if stores %}
+                <label for="store_id">Assign to store</label>
+                <select id="store_id" name="store_id">
+                    <option value="">Skip store mapping</option>
+                    {% for store in stores %}
+                        <option value="{{ store.id }}">{{ store.name }}</option>
+                    {% endfor %}
+                </select>
             {% endif %}
-            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER, UserRole.OPERATOR] %}
-                <option value="operator">Operator</option>
-            {% endif %}
-            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER, UserRole.OPERATOR, UserRole.TRAINER] %}
-                <option value="trainer">Trainer</option>
-            {% endif %}
-            <option value="trainee">Trainee</option>
-        </select>
-        {% if brands %}
-            <label for="brand_id">Brand</label>
-            <select id="brand_id" name="brand_id">
-                <option value="">Use my default</option>
-                {% for brand in brands %}
-                    <option value="{{ brand.id }}">{{ brand.name }}</option>
-                {% endfor %}
-            </select>
-        {% endif %}
-        {% if stores %}
-            <label for="store_id">Store membership (optional)</label>
-            <select id="store_id" name="store_id">
-                <option value="">No immediate store</option>
-                {% for store in stores %}
-                    <option value="{{ store.id }}">{{ store.name }}</option>
-                {% endfor %}
-            </select>
-        {% endif %}
-        <button type="submit">Create user</button>
-    </form>
+            <button type="submit">Create user</button>
+        </form>
+    </div>
+</section>
 {% endif %}
 {% endblock %}
