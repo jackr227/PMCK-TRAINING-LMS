@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Users</h2>
+<p>Only the roles you are allowed to create appear below. Operators and Trainers can create store-level teammates, while Admins and Super Admins can add any role.</p>
+{% if users %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Brand</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for person in users %}
+                <tr>
+                    <td>{{ person.display_name or (person.first_name + ' ' + person.last_name) }}</td>
+                    <td>{{ person.email }}</td>
+                    <td>{{ person.role.value.replace('_', ' ')|title }}</td>
+                    <td>{% if person.brand %}{{ person.brand.name }}{% else %}<em>Cross-brand</em>{% endif %}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No users within this scope yet.</p>
+{% endif %}
+
+{% if active_user.role != UserRole.TRAINEE %}
+    <h2 style="margin-top:2.5rem;">Create a user</h2>
+    <form method="post" action="/ui/users/create">
+        <label for="first_name">First name</label>
+        <input id="first_name" name="first_name" required />
+        <label for="last_name">Last name</label>
+        <input id="last_name" name="last_name" required />
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required />
+        <label for="role">Role</label>
+        <select id="role" name="role">
+            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN] %}
+                <option value="super_admin" {% if active_user.role != UserRole.SUPER_ADMIN %}disabled{% endif %}>Super Admin</option>
+                <option value="admin">Admin</option>
+            {% endif %}
+            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER] %}
+                <option value="area_manager">Area Manager</option>
+            {% endif %}
+            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER, UserRole.OPERATOR] %}
+                <option value="operator">Operator</option>
+            {% endif %}
+            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER, UserRole.OPERATOR, UserRole.TRAINER] %}
+                <option value="trainer">Trainer</option>
+            {% endif %}
+            <option value="trainee">Trainee</option>
+        </select>
+        {% if brands %}
+            <label for="brand_id">Brand</label>
+            <select id="brand_id" name="brand_id">
+                <option value="">Use my default</option>
+                {% for brand in brands %}
+                    <option value="{{ brand.id }}">{{ brand.name }}</option>
+                {% endfor %}
+            </select>
+        {% endif %}
+        {% if stores %}
+            <label for="store_id">Store membership (optional)</label>
+            <select id="store_id" name="store_id">
+                <option value="">No immediate store</option>
+                {% for store in stores %}
+                    <option value="{{ store.id }}">{{ store.name }}</option>
+                {% endfor %}
+            </select>
+        {% endif %}
+        <button type="submit">Create user</button>
+    </form>
+{% endif %}
+{% endblock %}

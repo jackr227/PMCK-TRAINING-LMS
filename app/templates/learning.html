@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>My learning</h2>
+<p>This view is exactly what trainees see when they sign in. Knock out courses and mark them complete as you finish.</p>
+{% if assignments %}
+    <table>
+        <thead>
+            <tr>
+                <th>Course</th>
+                <th>Status</th>
+                <th>Due</th>
+                <th>Required</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for assignment in assignments %}
+                <tr>
+                    <td>{{ assignment.course.title }}</td>
+                    <td>{{ assignment.status.value.replace('_', ' ')|title }}</td>
+                    <td>{% if assignment.due_date %}{{ assignment.due_date }}{% else %}<em>None</em>{% endif %}</td>
+                    <td>{% if assignment.required %}Yes{% else %}No{% endif %}</td>
+                    <td>
+                        {% if assignment.status != AssignmentStatus.COMPLETED %}
+                            <form method="post" action="/ui/assignments/{{ assignment.id }}/complete" class="inline">
+                                <button type="submit">Mark complete</button>
+                            </form>
+                        {% else %}
+                            <span style="font-weight:600;color:#16a34a;">Completed</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No assignments yet. Ask an operator or trainer to assign a course.</p>
+{% endif %}
+{% endblock %}

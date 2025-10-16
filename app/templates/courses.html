@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Courses</h2>
+<p>Global courses reach everyone in a brand, while Local courses stay inside your stores. Add modules and lessons to bring SOPs, training videos, and knowledge to life.</p>
+
+{% if courses %}
+    {% for course in courses %}
+        <div class="card" style="margin-bottom:1.5rem;">
+            <h3 style="margin-top:0;">{{ course.title }}</h3>
+            <p style="margin-top:0.3rem;">{{ course.summary }}</p>
+            <p style="font-size:0.9rem;opacity:0.8;">{{ course.course_type.value|title }} • Created by user #{{ course.creator_id }} • {% if course.required %}Required{% else %}Optional{% endif %}{% if course.due_date %} • Due {{ course.due_date }}{% endif %}</p>
+            {% if course.modules %}
+                <h4>Modules & lessons</h4>
+                <ul>
+                    {% for module in course.modules %}
+                        <li>
+                            <strong>{{ module.title }}</strong>
+                            <ul>
+                                {% for lesson in module.lessons %}
+                                    <li>{{ lesson.title }}</li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% if assignable_users and active_user.role != UserRole.TRAINEE %}
+                <form method="post" action="/ui/courses/{{ course.id }}/assign">
+                    <h4>Assign to a teammate</h4>
+                    <label for="user_id_{{ course.id }}">User</label>
+                    <select id="user_id_{{ course.id }}" name="user_id" required>
+                        {% for person in assignable_users %}
+                            <option value="{{ person.id }}">{{ person.display_name or (person.first_name + ' ' + person.last_name) }} — {{ person.role.value.replace('_', ' ')|title }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="due_date_{{ course.id }}">Due date (optional)</label>
+                    <input id="due_date_{{ course.id }}" name="due_date" type="date" />
+                    <label style="display:flex;align-items:center;gap:0.4rem;">
+                        <input type="checkbox" name="required" value="1" style="width:auto;margin:0;" /> Required
+                    </label>
+                    <button type="submit">Assign course</button>
+                </form>
+            {% endif %}
+        </div>
+    {% endfor %}
+{% else %}
+    <p>No courses yet. Build one below to get started.</p>
+{% endif %}
+
+{% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR, UserRole.TRAINER] %}
+    <h2 style="margin-top:2.5rem;">Create a course</h2>
+    <form method="post" action="/ui/courses/create">
+        <label for="title">Title</label>
+        <input id="title" name="title" required />
+        <label for="summary">Summary</label>
+        <textarea id="summary" name="summary" rows="3" required></textarea>
+        <label for="course_type">Course type</label>
+        <select id="course_type" name="course_type">
+            {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN] %}
+                <option value="global">Global</option>
+            {% endif %}
+            <option value="local">Local</option>
+        </select>
+        <label for="due_date">Due date (optional)</label>
+        <input id="due_date" name="due_date" type="date" />
+        <label style="display:flex;align-items:center;gap:0.4rem;">
+            <input type="checkbox" name="required" value="1" style="width:auto;margin:0;" /> Required
+        </label>
+        <label for="module_title">Module title</label>
+        <input id="module_title" name="module_title" required />
+        <label for="lesson_title">Lesson title</label>
+        <input id="lesson_title" name="lesson_title" required />
+        <label for="lesson_content">Lesson content</label>
+        <textarea id="lesson_content" name="lesson_content" rows="4" required></textarea>
+        {% if stores %}
+            <label for="store_scope">Limit to store (optional)</label>
+            <select id="store_scope" name="store_scope">
+                <option value="">Use audience builder rules later</option>
+                {% for store in stores %}
+                    <option value="{{ store.id }}">{{ store.name }}</option>
+                {% endfor %}
+            </select>
+        {% endif %}
+        <button type="submit">Create course</button>
+    </form>
+{% endif %}
+{% endblock %}

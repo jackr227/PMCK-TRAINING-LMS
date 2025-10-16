@@ -16,50 +16,44 @@ A FastAPI-based learning management platform that implements the PMCK Training v
 
 ## Getting Started
 
-1. **Install dependencies**
+### Windows (double-click setup)
+
+1. Run `setup_pmck_training.bat`. The script checks for Python 3.10+, creates a `.venv`, and installs dependencies.
+2. Launch `run_pmck_training.bat`. A terminal will open, seed demo data (if needed), and start the FastAPI server on `http://127.0.0.1:8000`.
+3. Open that URL in your browser. The new visual dashboard lets you pick a seeded demo user and explore each role’s permissions without touching headers or scripts.
+
+### macOS / Linux
+
+1. Install dependencies manually:
    ```bash
    python -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-
-2. **One-file quickstart**
+2. Launch the seeded demo:
    ```bash
    python run_pmck_training.py
    ```
-
-   The script creates a SQLite database (`pmck_training.db`), seeds demo data, prints
-   ready-to-use account IDs, and starts the FastAPI server on
-   `http://127.0.0.1:8000`.
-
-3. **Run manually (optional)**
+   or run the API directly with:
    ```bash
    uvicorn app.main:app --reload
    ```
+3. Visit `http://127.0.0.1:8000` for the UI or `http://127.0.0.1:8000/docs` to exercise the API.
 
-4. **Authenticate requests**
+### API access & demo accounts
 
-   Supply an `X-User-Id` header that corresponds to a user in the database. Bootstrapping usually starts by inserting a Super Admin via the SQLite database:
-   ```sql
-   INSERT INTO users (id, first_name, last_name, email, role, is_active)
-   VALUES (1, 'Super', 'Admin', 'super@pmck.local', 'super_admin', 1);
-   ```
+If you want to call endpoints manually, supply an `X-User-Id` header that matches a user in the database.
 
-5. **Explore the API**
+The launcher seeds these demo users:
+`1` Super Admin, `2` Brand Admin, `3` Area Manager, `4` Operator,
+`5` Trainer, `6` Trainee.
 
-   Visit `http://127.0.0.1:8000/docs` for interactive Swagger documentation. Use the
-   header box at the top-right to set `X-User-Id`.
+Quick examples:
 
-6. **Quick demo calls**
-
-   ```bash
-   curl -H "X-User-Id: 1" http://127.0.0.1:8000/brands
-   curl -H "X-User-Id: 4" http://127.0.0.1:8000/courses
-   ```
-
-   Demo accounts seeded by `run_pmck_training.py`:
-   `1` Super Admin, `2` Brand Admin, `3` Area Manager, `4` Operator,
-   `5` Trainer, `6` Trainee.
+```bash
+curl -H "X-User-Id: 1" http://127.0.0.1:8000/brands
+curl -H "X-User-Id: 4" http://127.0.0.1:8000/courses
+```
 
 ## Database
 

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>PMCK Training — Demo Sign In</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(160deg, #0f172a 0%, #1d4ed8 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .panel {
+            background: rgba(15, 23, 42, 0.85);
+            padding: 2.5rem;
+            border-radius: 20px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.6);
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 1.9rem;
+        }
+        p {
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.85);
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin: 1rem 0 0.3rem;
+        }
+        select {
+            width: 100%;
+            padding: 0.7rem;
+            border-radius: 10px;
+            border: none;
+            font-size: 1rem;
+        }
+        button {
+            width: 100%;
+            margin-top: 1.5rem;
+            padding: 0.85rem;
+            font-size: 1rem;
+            border-radius: 10px;
+            border: none;
+            background: #fbbf24;
+            color: #0f172a;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .tip {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .card {
+            margin-top: 1.5rem;
+            background: rgba(30, 58, 138, 0.4);
+            padding: 1rem 1.2rem;
+            border-radius: 14px;
+        }
+        .card strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h1>Welcome to PMCK Training</h1>
+        <p>Select a seeded demo account to explore the LMS with real permissions. Super Admins can switch brands from inside the app.</p>
+        <form method="post" action="/ui/login">
+            <label for="user_id">Choose a user</label>
+            <select id="user_id" name="user_id" required>
+                {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.display_name or (user.first_name + ' ' + user.last_name) }} — {{ user.role.value.replace('_', ' ')|title }}</option>
+                {% endfor %}
+            </select>
+            <label for="brand_id">Optional brand theme</label>
+            <select id="brand_id" name="brand_id">
+                <option value="">Use my default brand</option>
+                {% for brand in brands %}
+                    <option value="{{ brand.id }}">{{ brand.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Enter PMCK Training</button>
+        </form>
+        <div class="card">
+            <strong>Need instructions?</strong>
+            <div>Run <code>setup_pmck_training.bat</code> once, then double-click <code>run_pmck_training.bat</code>. When the window shows “server is starting”, open <a href="http://127.0.0.1:8000" style="color:#fde68a;">http://127.0.0.1:8000</a>.</div>
+        </div>
+        <p class="tip">Tip: switch accounts anytime by signing out. Each role surfaces different actions.</p>
+    </div>
+</body>
+</html>

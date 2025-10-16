@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from datetime import date
-from typing import Iterable, List
+from datetime import date, datetime
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 
 from .database import Base, engine, get_session
 from .models import (
@@ -44,6 +48,12 @@ from .schemas import (
 )
 
 app = FastAPI(title="PMCK Training LMS")
+
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+templates.env.globals["UserRole"] = UserRole
+templates.env.globals["AssignmentStatus"] = AssignmentStatus
+
+app.add_middleware(SessionMiddleware, secret_key="pmck-training-demo-ui")
 
 
 @app.on_event("startup")
@@ -152,6 +162,103 @@ def log_action(
     session.add(entry)
 
 
+# ----------------------------
+# UI helpers
+# ----------------------------
+
+
+def set_flash(request: Request, category: str, message: str) -> None:
+    request.session["_flash"] = {"category": category, "message": message}
+
+
+def pop_flash(request: Request) -> Optional[Dict[str, str]]:
+    flash = request.session.get("_flash")
+    if flash:
+        request.session.pop("_flash")
+    return flash
+
+
+def get_ui_user(request: Request, session: Session) -> Optional[User]:
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return None
+    user = session.get(User, user_id)
+    if not user or not user.is_active:
+        request.session.pop("user_id", None)
+        return None
+    return user
+
+
+def get_ui_brand_context(
+    request: Request, user: User, session: Session
+) -> Dict[str, Optional[Brand]]:
+    brand_scope_ids = get_brand_scope(user, session)
+    available_brands: List[Brand] = []
+    if brand_scope_ids:
+        available_brands = list(
+            session.scalars(select(Brand).where(Brand.id.in_(brand_scope_ids))).all()
+        )
+    else:
+        if user.role == UserRole.SUPER_ADMIN:
+            available_brands = list(session.scalars(select(Brand)).all())
+    brand_lookup = {brand.id: brand for brand in available_brands}
+    preferred_brand_id = request.session.get("brand_id")
+    active_brand: Optional[Brand] = None
+    if preferred_brand_id:
+        active_brand = brand_lookup.get(preferred_brand_id)
+        if active_brand is None and preferred_brand_id:
+            request.session.pop("brand_id", None)
+    if active_brand is None:
+        if user.brand_id and user.brand_id in brand_lookup:
+            active_brand = brand_lookup[user.brand_id]
+        elif available_brands:
+            active_brand = available_brands[0]
+
+    return {
+        "active_brand": active_brand,
+        "available_brands": available_brands,
+    }
+
+
+def build_layout_context(
+    request: Request, session: Session, user: User, *, current_path: str
+) -> Dict[str, object]:
+    brand_context = get_ui_brand_context(request, user, session)
+    flash = pop_flash(request)
+    return {
+        "request": request,
+        "active_user": user,
+        "active_brand": brand_context.get("active_brand"),
+        "available_brands": brand_context.get("available_brands", []),
+        "flash": flash,
+        "current_path": current_path,
+    }
+
+
+def users_in_scope(user: User, session: Session) -> List[User]:
+    if user.role == UserRole.SUPER_ADMIN:
+        return list(session.scalars(select(User).where(User.is_active.is_(True))).all())
+    if user.role == UserRole.ADMIN:
+        if not user.brand_id:
+            return []
+        return list(
+            session.scalars(
+                select(User).where(User.brand_id == user.brand_id, User.is_active.is_(True))
+            ).all()
+        )
+    store_ids = get_store_scope(user, session)
+    if not store_ids:
+        return [user]
+    user_query = (
+        select(User)
+        .join(StoreMembership, StoreMembership.user_id == User.id)
+        .where(StoreMembership.store_id.in_(store_ids), User.is_active.is_(True))
+        .distinct()
+    )
+    return list(session.scalars(user_query).all())
+
+
+# ----------------------------
 # ----------------------------
 # Brand endpoints
 # ----------------------------
@@ -551,3 +658,563 @@ def list_audit_entries(
         f"{entry.created_at.isoformat()} :: user={entry.actor_id} :: {entry.action} {entry.entity_type}#{entry.entity_id}"
         for entry in entries
     ]
+
+
+# ----------------------------
+# Browser-based UI
+# ----------------------------
+
+
+@app.get("/", response_class=HTMLResponse)
+def login_page(request: Request, session: Session = Depends(get_session)):
+    user = get_ui_user(request, session)
+    if user:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    brands = list(session.scalars(select(Brand).order_by(Brand.name)).all())
+    users = list(
+        session.scalars(select(User).where(User.is_active.is_(True)).order_by(User.role, User.display_name))
+        .all()
+    )
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "brands": brands,
+            "users": users,
+        },
+    )
+
+
+@app.post("/ui/login")
+def ui_login(
+    request: Request,
+    session: Session = Depends(get_session),
+    user_id: int = Form(...),
+    brand_id: Optional[int] = Form(default=None),
+):
+    user = session.get(User, user_id)
+    if not user or not user.is_active:
+        set_flash(request, "error", "That account is not available. Try another user.")
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    request.session["user_id"] = user.id
+    request.session.pop("brand_id", None)
+    if brand_id:
+        try:
+            ensure_brand_permission(user, brand_id, session)
+        except HTTPException:
+            set_flash(request, "error", "You cannot open that brand. Pick one you manage.")
+            return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+        request.session["brand_id"] = brand_id
+    set_flash(request, "success", f"Welcome back, {user.display_name or user.first_name}!")
+    return RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/logout")
+def ui_logout(request: Request) -> RedirectResponse:
+    request.session.pop("user_id", None)
+    request.session.pop("brand_id", None)
+    set_flash(request, "success", "Signed out successfully.")
+    return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/ui/brand/switch")
+def switch_brand(
+    request: Request,
+    session: Session = Depends(get_session),
+    brand_id: int = Form(...),
+):
+    user = get_ui_user(request, session)
+    if not user:
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        ensure_brand_permission(user, brand_id, session)
+    except HTTPException:
+        set_flash(request, "error", "Brand outside your scope.")
+    else:
+        request.session["brand_id"] = brand_id
+        set_flash(request, "success", "Brand theme updated.")
+    referer = request.headers.get("referer") or "/dashboard"
+    return RedirectResponse(referer, status_code=status.HTTP_303_SEE_OTHER)
+
+
+def ensure_ui_authenticated(
+    request: Request, session: Session
+) -> Optional[RedirectResponse]:
+    user = get_ui_user(request, session)
+    if not user:
+        set_flash(request, "error", "Please choose a demo user to continue.")
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    request.state.active_user = user
+    return None
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, session: Session = Depends(get_session)):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    context = build_layout_context(request, session, user, current_path="/dashboard")
+    store_ids = get_store_scope(user, session)
+    assignments = list(
+        session.scalars(
+            select(CourseAssignment).where(CourseAssignment.user_id == user.id)
+        ).all()
+    )
+    pending_assignments = [a for a in assignments if a.status != AssignmentStatus.COMPLETED]
+    completed_assignments = [a for a in assignments if a.status == AssignmentStatus.COMPLETED]
+    managed_users = users_in_scope(user, session)
+    stores = []
+    if store_ids:
+        stores = list(session.scalars(select(Store).where(Store.id.in_(store_ids))).all())
+    brand_context = get_ui_brand_context(request, user, session)
+    if user.role in {UserRole.SUPER_ADMIN, UserRole.ADMIN}:
+        audit_query = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(10)
+        audits = list(session.scalars(audit_query).all())
+    else:
+        audits = []
+    context.update(
+        {
+            "pending_assignments": pending_assignments,
+            "completed_assignments": completed_assignments,
+            "managed_users": managed_users,
+            "stores": stores,
+            "brand_context": brand_context,
+            "audits": audits,
+        }
+    )
+    return templates.TemplateResponse("dashboard.html", context)
+
+
+@app.get("/ui/brands", response_class=HTMLResponse)
+def manage_brands(request: Request, session: Session = Depends(get_session)):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    if user.role not in {UserRole.SUPER_ADMIN, UserRole.ADMIN}:
+        set_flash(request, "error", "Only admins can view brand settings.")
+        return RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    context = build_layout_context(request, session, user, current_path="/ui/brands")
+    brand_query = select(Brand).order_by(Brand.name)
+    if user.role == UserRole.ADMIN and user.brand_id:
+        brand_query = brand_query.where(Brand.id == user.brand_id)
+    brands = list(session.scalars(brand_query).all())
+    context.update({"brands": brands})
+    return templates.TemplateResponse("brands.html", context)
+
+
+@app.post("/ui/brands/create")
+def create_brand_ui(
+    request: Request,
+    session: Session = Depends(get_session),
+    name: str = Form(...),
+    theme_primary_color: Optional[str] = Form(default=None),
+    theme_secondary_color: Optional[str] = Form(default=None),
+    tone: Optional[str] = Form(default=None),
+    logo_url: Optional[str] = Form(default=None),
+):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    if user.role != UserRole.SUPER_ADMIN:
+        set_flash(request, "error", "Only super admins can create brands.")
+        return RedirectResponse("/ui/brands", status_code=status.HTTP_303_SEE_OTHER)
+    brand = Brand(
+        name=name.strip(),
+        theme_primary_color=theme_primary_color or None,
+        theme_secondary_color=theme_secondary_color or None,
+        tone=tone or None,
+        logo_url=logo_url or None,
+    )
+    session.add(brand)
+    session.flush()
+    log_action(session, user, "create", "brand", brand.id, details=f"UI created {brand.name}")
+    session.commit()
+    set_flash(request, "success", f"Brand '{brand.name}' created.")
+    return RedirectResponse("/ui/brands", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/ui/stores", response_class=HTMLResponse)
+def manage_stores(request: Request, session: Session = Depends(get_session)):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    context = build_layout_context(request, session, user, current_path="/ui/stores")
+    brand_context = get_ui_brand_context(request, user, session)
+    active_brand: Optional[Brand] = brand_context.get("active_brand")  # type: ignore[assignment]
+    store_ids = get_store_scope(user, session)
+    store_query = select(Store)
+    if user.role in {UserRole.SUPER_ADMIN, UserRole.ADMIN}:
+        if active_brand:
+            store_query = store_query.where(Store.brand_id == active_brand.id)
+    elif store_ids:
+        store_query = store_query.where(Store.id.in_(store_ids))
+    else:
+        store_query = store_query.where(False)
+    stores = list(session.scalars(store_query.order_by(Store.name)).all())
+    context.update({"stores": stores, "active_brand": active_brand})
+    return templates.TemplateResponse("stores.html", context)
+
+
+@app.post("/ui/stores/create")
+def create_store_ui(
+    request: Request,
+    session: Session = Depends(get_session),
+    name: str = Form(...),
+    code: str = Form(...),
+    region: Optional[str] = Form(default=None),
+    brand_id: Optional[int] = Form(default=None),
+):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    brand_to_use = brand_id or request.session.get("brand_id") or user.brand_id
+    if brand_to_use is None:
+        set_flash(request, "error", "Choose a brand before adding a store.")
+        return RedirectResponse("/ui/stores", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        ensure_brand_permission(user, int(brand_to_use), session)
+    except HTTPException:
+        set_flash(request, "error", "You cannot create stores for that brand.")
+        return RedirectResponse("/ui/stores", status_code=status.HTTP_303_SEE_OTHER)
+    store = Store(
+        name=name.strip(),
+        code=code.strip(),
+        region=(region or "").strip() or None,
+        brand_id=int(brand_to_use),
+    )
+    session.add(store)
+    session.flush()
+    log_action(session, user, "create", "store", store.id, details=f"UI created {store.name}")
+    session.commit()
+    set_flash(request, "success", f"Store '{store.name}' added.")
+    return RedirectResponse("/ui/stores", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/ui/users", response_class=HTMLResponse)
+def manage_users(request: Request, session: Session = Depends(get_session)):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    context = build_layout_context(request, session, user, current_path="/ui/users")
+    visible_users = users_in_scope(user, session)
+    store_ids = get_store_scope(user, session)
+    stores = []
+    if store_ids:
+        stores = list(session.scalars(select(Store).where(Store.id.in_(store_ids))).all())
+    if user.role in {UserRole.SUPER_ADMIN, UserRole.ADMIN}:
+        brand_ids = get_brand_scope(user, session)
+        if not brand_ids and user.brand_id:
+            brand_ids = [user.brand_id]
+        brands = list(session.scalars(select(Brand).where(Brand.id.in_(brand_ids))).all()) if brand_ids else []
+    else:
+        brand_context = get_ui_brand_context(request, user, session)
+        brands = [brand_context.get("active_brand")] if brand_context.get("active_brand") else []
+    context.update(
+        {
+            "users": visible_users,
+            "stores": stores,
+            "brands": brands,
+        }
+    )
+    return templates.TemplateResponse("users.html", context)
+
+
+@app.post("/ui/users/create")
+def create_user_ui(
+    request: Request,
+    session: Session = Depends(get_session),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    role: UserRole = Form(...),
+    brand_id: Optional[int] = Form(default=None),
+    store_id: Optional[int] = Form(default=None),
+):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    actor: User = request.state.active_user
+    try:
+        ensure_can_create_role(actor, role)
+    except HTTPException:
+        set_flash(request, "error", "You do not have permission to create that role.")
+        return RedirectResponse("/ui/users", status_code=status.HTTP_303_SEE_OTHER)
+    if brand_id:
+        try:
+            ensure_brand_permission(actor, brand_id, session)
+        except HTTPException:
+            set_flash(request, "error", "Brand is outside your scope.")
+            return RedirectResponse("/ui/users", status_code=status.HTTP_303_SEE_OTHER)
+    brand_for_user = brand_id or actor.brand_id
+    new_user = User(
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+        display_name=f"{first_name.strip()} {last_name.strip()}",
+        email=email.strip(),
+        role=role,
+        brand_id=brand_for_user,
+        is_active=True,
+    )
+    session.add(new_user)
+    session.flush()
+    if store_id:
+        try:
+            ensure_store_permission(actor, [store_id], session)
+        except HTTPException:
+            set_flash(request, "error", "That store is outside your scope.")
+            session.rollback()
+            return RedirectResponse("/ui/users", status_code=status.HTTP_303_SEE_OTHER)
+        membership = StoreMembership(
+            user_id=new_user.id,
+            store_id=store_id,
+            role=role,
+            status=MembershipStatus.ACTIVE,
+        )
+        session.add(membership)
+    session.flush()
+    log_action(
+        session,
+        actor,
+        "create",
+        "user",
+        new_user.id,
+        details=f"UI created {new_user.display_name} ({new_user.role.value})",
+    )
+    session.commit()
+    set_flash(request, "success", f"User '{new_user.display_name}' created.")
+    return RedirectResponse("/ui/users", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/ui/courses", response_class=HTMLResponse)
+def manage_courses(request: Request, session: Session = Depends(get_session)):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    context = build_layout_context(request, session, user, current_path="/ui/courses")
+    brand_ids = get_brand_scope(user, session)
+    course_query = select(Course).order_by(Course.created_at.desc())
+    if brand_ids:
+        course_query = course_query.where((Course.brand_id.is_(None)) | (Course.brand_id.in_(brand_ids)))
+    courses = list(session.scalars(course_query).all())
+    assignable_users = users_in_scope(user, session)
+    stores = []
+    if user.role in {UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER, UserRole.OPERATOR, UserRole.TRAINER}:
+        store_ids = get_store_scope(user, session)
+        if store_ids:
+            stores = list(session.scalars(select(Store).where(Store.id.in_(store_ids))).all())
+    context.update(
+        {
+            "courses": courses,
+            "assignable_users": assignable_users,
+            "stores": stores,
+        }
+    )
+    return templates.TemplateResponse("courses.html", context)
+
+
+@app.post("/ui/courses/create")
+def create_course_ui(
+    request: Request,
+    session: Session = Depends(get_session),
+    title: str = Form(...),
+    summary: str = Form(...),
+    course_type: CourseType = Form(...),
+    required: Optional[str] = Form(default=None),
+    due_date: Optional[str] = Form(default=None),
+    module_title: str = Form(...),
+    lesson_title: str = Form(...),
+    lesson_content: str = Form(...),
+    store_scope: Optional[int] = Form(default=None),
+):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    actor: User = request.state.active_user
+    if actor.role not in {UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR, UserRole.TRAINER}:
+        set_flash(request, "error", "You cannot create courses with this role.")
+        return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    brand_context = get_ui_brand_context(request, actor, session)
+    brand = brand_context.get("active_brand")
+    brand_id = brand.id if brand else actor.brand_id
+    if course_type == CourseType.GLOBAL and actor.role not in {UserRole.SUPER_ADMIN, UserRole.ADMIN}:
+        set_flash(request, "error", "Only admins can create global courses.")
+        return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    if brand_id:
+        try:
+            ensure_brand_permission(actor, brand_id, session)
+        except HTTPException:
+            set_flash(request, "error", "Brand outside your scope.")
+            return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    course = Course(
+        title=title.strip(),
+        summary=summary.strip(),
+        brand_id=brand_id,
+        course_type=course_type,
+        creator_id=actor.id,
+        required=bool(required),
+    )
+    if due_date:
+        try:
+            course.due_date = date.fromisoformat(due_date)
+        except ValueError:
+            set_flash(request, "error", "Due date must be YYYY-MM-DD.")
+            return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    session.add(course)
+    session.flush()
+    module = CourseModule(course_id=course.id, title=module_title.strip(), order_index=1)
+    session.add(module)
+    session.flush()
+    lesson = Lesson(
+        module_id=module.id,
+        title=lesson_title.strip(),
+        content=lesson_content.strip(),
+        order_index=1,
+    )
+    session.add(lesson)
+    if store_scope:
+        try:
+            ensure_store_permission(actor, [store_scope], session)
+        except HTTPException:
+            set_flash(request, "error", "Store outside your scope.")
+            session.rollback()
+            return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+        course.audience_rules.append(
+            CourseAudienceRule(
+                course_id=course.id,
+                rule_type=CourseAudienceRuleType.INCLUDE,
+                dimension=AudienceDimension.STORE,
+                value=str(store_scope),
+            )
+        )
+    session.flush()
+    log_action(session, actor, "create", "course", course.id, details=f"UI created {course.title}")
+    session.commit()
+    set_flash(request, "success", f"Course '{course.title}' created.")
+    return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/ui/courses/{course_id}/assign")
+def assign_course_ui(
+    course_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user_id: int = Form(...),
+    due_date: Optional[str] = Form(default=None),
+    required: Optional[str] = Form(default=None),
+):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    actor: User = request.state.active_user
+    course = session.get(Course, course_id)
+    if not course:
+        set_flash(request, "error", "Course not found.")
+        return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    target_user = session.get(User, user_id)
+    if not target_user:
+        set_flash(request, "error", "User not found.")
+        return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    if actor.role == UserRole.TRAINEE:
+        set_flash(request, "error", "Trainees cannot assign courses.")
+        return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    if course.brand_id:
+        try:
+            ensure_brand_permission(actor, course.brand_id, session)
+        except HTTPException:
+            set_flash(request, "error", "This course is outside your scope.")
+            return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    if actor.role not in {UserRole.SUPER_ADMIN, UserRole.ADMIN}:
+        store_ids = get_store_scope(actor, session)
+        target_store_ids = {membership.store_id for membership in target_user.memberships}
+        if not (set(store_ids) & target_store_ids):
+            set_flash(request, "error", "That teammate is outside your stores.")
+            return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    existing = session.scalars(
+        select(CourseAssignment).where(
+            CourseAssignment.course_id == course.id,
+            CourseAssignment.user_id == target_user.id,
+        )
+    ).first()
+    if existing:
+        set_flash(request, "error", "That user already has the course assigned.")
+        return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    assignment = CourseAssignment(
+        course_id=course.id,
+        user_id=target_user.id,
+        status=AssignmentStatus.ASSIGNED,
+        required=bool(required),
+    )
+    if due_date:
+        try:
+            assignment.due_date = date.fromisoformat(due_date)
+        except ValueError:
+            set_flash(request, "error", "Due date must be YYYY-MM-DD.")
+            return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+    session.add(assignment)
+    session.flush()
+    log_action(
+        session,
+        actor,
+        "assign",
+        "course_assignment",
+        assignment.id,
+        details=f"UI assigned {course.title} to {target_user.display_name or target_user.email}",
+    )
+    session.commit()
+    set_flash(request, "success", "Course assigned successfully.")
+    return RedirectResponse("/ui/courses", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/learning", response_class=HTMLResponse)
+def my_learning(request: Request, session: Session = Depends(get_session)):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    context = build_layout_context(request, session, user, current_path="/learning")
+    assignments = list(
+        session.scalars(
+            select(CourseAssignment)
+            .where(CourseAssignment.user_id == user.id)
+            .order_by(CourseAssignment.due_date.is_(None), CourseAssignment.due_date)
+        ).all()
+    )
+    context.update({"assignments": assignments})
+    return templates.TemplateResponse("learning.html", context)
+
+
+@app.post("/ui/assignments/{assignment_id}/complete")
+def complete_assignment_ui(
+    assignment_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    redirect = ensure_ui_authenticated(request, session)
+    if redirect:
+        return redirect
+    user: User = request.state.active_user
+    assignment = session.get(CourseAssignment, assignment_id)
+    if not assignment or assignment.user_id != user.id:
+        set_flash(request, "error", "Assignment not found.")
+        return RedirectResponse("/learning", status_code=status.HTTP_303_SEE_OTHER)
+    assignment.status = AssignmentStatus.COMPLETED
+    assignment.completed_at = datetime.utcnow()
+    session.flush()
+    log_action(
+        session,
+        user,
+        "complete",
+        "course_assignment",
+        assignment.id,
+        details=f"UI completion by {user.display_name or user.email}",
+    )
+    session.commit()
+    set_flash(request, "success", "Nice work! Assignment marked complete.")
+    return RedirectResponse("/learning", status_code=status.HTTP_303_SEE_OTHER)

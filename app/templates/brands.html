@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Brands</h2>
+<p>Brands define the visual identity, tone, and store network available to each user. Super Admins can create and curate multiple brands from here.</p>
+{% if brands %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Primary colour</th>
+                <th>Secondary colour</th>
+                <th>Tone</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for brand in brands %}
+                <tr>
+                    <td>{{ brand.name }}</td>
+                    <td>{{ brand.theme_primary_color or '—' }}</td>
+                    <td>{{ brand.theme_secondary_color or '—' }}</td>
+                    <td>{{ brand.tone or '—' }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No brands yet. Create one below to get started.</p>
+{% endif %}
+
+{% if active_user.role == UserRole.SUPER_ADMIN %}
+    <h2 style="margin-top:2.5rem;">Create a new brand</h2>
+    <form method="post" action="/ui/brands/create">
+        <label for="name">Name</label>
+        <input id="name" name="name" required />
+        <label for="theme_primary_color">Primary colour (hex)</label>
+        <input id="theme_primary_color" name="theme_primary_color" placeholder="#0f172a" />
+        <label for="theme_secondary_color">Secondary colour (hex)</label>
+        <input id="theme_secondary_color" name="theme_secondary_color" placeholder="#1d4ed8" />
+        <label for="tone">Tone of voice</label>
+        <input id="tone" name="tone" placeholder="Friendly, optimistic, etc." />
+        <label for="logo_url">Logo URL</label>
+        <input id="logo_url" name="logo_url" placeholder="https://example.com/logo.png" />
+        <button type="submit">Create brand</button>
+    </form>
+{% endif %}
+{% endblock %}

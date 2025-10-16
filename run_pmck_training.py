@@ -258,7 +258,10 @@ def print_instructions() -> None:
         """
         PMCK Training LMS demo server is starting on http://127.0.0.1:8000
 
-        Sign in by supplying the X-User-Id header in requests or inside the Swagger UI.
+        Open that URL in your browser to use the visual dashboard. Pick a seeded user on the
+        welcome screen to explore different permissions. You can still drive the API directly
+        by supplying the X-User-Id header in requests or inside the Swagger UI.
+
         Demo accounts:
           • 1 — Super Admin (cross-brand control)
           • 2 — Brand Admin (brand-scoped)

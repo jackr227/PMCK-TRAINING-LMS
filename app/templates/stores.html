@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Stores</h2>
+<p>Stores keep Operators, Trainers, and Trainees scoped to the locations they manage. Switch brands using the header drop-down to review another network.</p>
+{% if stores %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Region</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for store in stores %}
+                <tr>
+                    <td>{{ store.name }}</td>
+                    <td>{{ store.code }}</td>
+                    <td>{{ store.region or '—' }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No stores for this scope yet.</p>
+{% endif %}
+
+{% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN] %}
+    <h2 style="margin-top:2.5rem;">Add a store</h2>
+    <form method="post" action="/ui/stores/create">
+        <label for="name">Store name</label>
+        <input id="name" name="name" required />
+        <label for="code">Store code</label>
+        <input id="code" name="code" required />
+        <label for="region">Region / province</label>
+        <input id="region" name="region" />
+        {% if available_brands and available_brands|length > 0 %}
+            <label for="brand_id">Brand</label>
+            <select id="brand_id" name="brand_id">
+                {% for brand in available_brands %}
+                    <option value="{{ brand.id }}" {% if active_brand and brand.id == active_brand.id %}selected{% endif %}>{{ brand.name }}</option>
+                {% endfor %}
+            </select>
+        {% endif %}
+        <button type="submit">Create store</button>
+    </form>
+{% endif %}
+{% endblock %}

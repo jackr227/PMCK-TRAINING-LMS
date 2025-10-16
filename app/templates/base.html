@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>{{ title or "PMCK Training" }}</title>
+    {% set primary = (active_brand.theme_primary_color if active_brand and active_brand.theme_primary_color else "#0f172a") %}
+    {% set secondary = (active_brand.theme_secondary_color if active_brand and active_brand.theme_secondary_color else "#1d4ed8") %}
+    <style>
+        :root {
+            --primary: {{ primary }};
+            --secondary: {{ secondary }};
+            --bg: #f8fafc;
+            --text: #0f172a;
+        }
+        * {
+            box-sizing: border-box;
+            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        header .brand-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        header img {
+            height: 42px;
+            width: auto;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.25rem 0.4rem;
+        }
+        header .brand-name {
+            font-size: 1.35rem;
+            font-weight: 700;
+        }
+        header .tone {
+            font-size: 0.85rem;
+            opacity: 0.85;
+        }
+        nav {
+            background: #fff;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        nav a {
+            padding: 0.5rem 0.9rem;
+            border-radius: 999px;
+            text-decoration: none;
+            color: var(--text);
+            border: 1px solid transparent;
+            transition: all 0.15s ease-in-out;
+        }
+        nav a:hover {
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+        nav a.active {
+            background: var(--secondary);
+            color: #fff;
+        }
+        .content {
+            padding: 1.5rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .flash {
+            border-radius: 8px;
+            padding: 0.9rem 1.1rem;
+            margin: 1rem 1.5rem 0;
+            font-weight: 600;
+        }
+        .flash.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #15803d;
+        }
+        .flash.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.25rem;
+            margin-top: 1rem;
+        }
+        .card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 1.2rem 1.4rem;
+            box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.6);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table thead {
+            background: rgba(15, 23, 42, 0.05);
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        form.inline {
+            display: inline-block;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        button, input[type="submit"] {
+            background: var(--secondary);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.55rem 1rem;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+        button.secondary, input.secondary {
+            background: transparent;
+            color: var(--secondary);
+            border: 1px solid var(--secondary);
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.2rem;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 0.55rem 0.65rem;
+            border-radius: 8px;
+            border: 1px solid #cbd5f5;
+            margin-bottom: 0.9rem;
+            font-size: 0.95rem;
+        }
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: #475569;
+            font-size: 0.85rem;
+        }
+        .brand-switcher {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand-info">
+            {% if active_brand and active_brand.logo_url %}
+                <img src="{{ active_brand.logo_url }}" alt="{{ active_brand.name }} logo" />
+            {% endif %}
+            <div>
+                <div class="brand-name">{{ active_brand.name if active_brand else "PMCK Training" }}</div>
+                {% if active_brand and active_brand.tone %}
+                    <div class="tone">{{ active_brand.tone }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="brand-switcher">
+            {% if available_brands and available_brands|length > 1 %}
+                <form method="post" action="/ui/brand/switch">
+                    <label for="brand_id" style="color:#fff;font-size:0.8rem;margin-bottom:0.25rem;">Switch brand</label>
+                    <select name="brand_id" id="brand_id" onchange="this.form.submit()">
+                        {% for brand in available_brands %}
+                            <option value="{{ brand.id }}" {% if active_brand and brand.id == active_brand.id %}selected{% endif %}>{{ brand.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            {% endif %}
+            <div>
+                <div style="font-weight:600;">{{ active_user.display_name or active_user.email }}</div>
+                <div style="font-size:0.8rem;opacity:0.85;text-align:right;">{{ active_user.role.value.replace('_', ' ')|title }}</div>
+                <a href="/logout" style="color:#fff;font-size:0.8rem;">Sign out</a>
+            </div>
+        </div>
+    </header>
+    <nav>
+        {% set path = current_path or request.url.path %}
+        <a href="/dashboard" class="{% if path.startswith('/dashboard') %}active{% endif %}">Dashboard</a>
+        <a href="/learning" class="{% if path.startswith('/learning') %}active{% endif %}">My Learning</a>
+        {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN] %}
+            <a href="/ui/brands" class="{% if path.startswith('/ui/brands') %}active{% endif %}">Brands</a>
+        {% endif %}
+        <a href="/ui/stores" class="{% if path.startswith('/ui/stores') %}active{% endif %}">Stores</a>
+        {% if active_user.role != UserRole.TRAINEE %}
+            <a href="/ui/users" class="{% if path.startswith('/ui/users') %}active{% endif %}">Users</a>
+        {% endif %}
+        {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AREA_MANAGER, UserRole.OPERATOR, UserRole.TRAINER] %}
+            <a href="/ui/courses" class="{% if path.startswith('/ui/courses') %}active{% endif %}">Courses</a>
+        {% endif %}
+    </nav>
+    {% if flash %}
+        <div class="flash {{ flash.category }}">{{ flash.message }}</div>
+    {% endif %}
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        PMCK Training demo — switch accounts from the top right to explore different permissions.
+    </footer>
+</body>
+</html>
