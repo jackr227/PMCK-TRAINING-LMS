@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{% if mode == 'new' %}Create user{% else %}Edit user{% endif %}</h2>
+<form method="post" class="card" style="max-width:640px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label for="first_name">First name</label>
+    <input id="first_name" name="first_name" value="{{ user_record.first_name if user_record else '' }}" required />
+    <label for="last_name">Last name</label>
+    <input id="last_name" name="last_name" value="{{ user_record.last_name if user_record else '' }}" required />
+    {% if mode == 'new' %}
+    <label for="email">Email</label>
+    <input id="email" name="email" value="" required />
+    <label for="role">Role</label>
+    <select id="role" name="role">
+        {% for role in roles %}
+        <option value="{{ role.value }}">{{ role.value|title }}</option>
+        {% endfor %}
+    </select>
+    {% else %}
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone" value="{{ user_record.phone or '' }}" />
+    <label><input type="checkbox" name="disabled" {% if user_record.disabled %}checked{% endif %}/> Disabled</label>
+    {% endif %}
+    {% if stores %}
+    <label>Stores</label>
+    <select name="store_ids" multiple>
+        {% for store in stores %}
+        <option value="{{ store.id }}"
+            {% if user_record and user_record.memberships|selectattr('store_id', 'equalto', store.id)|list %}selected{% endif %}>{{ store.display_name }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    <button class="btn" type="submit">Save</button>
+</form>
+{% if mode == 'edit' %}
+<div class="card" style="margin-top:1.5rem; max-width:640px;">
+    <h3>Reset password</h3>
+    <form method="post" action="/admin/users/{{ user_record.id }}/reset">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button class="btn" type="submit">Send temp password</button>
+    </form>
+</div>
+<div class="card" style="margin-top:1.5rem; max-width:640px;">
+    <h3>Update stores</h3>
+    <form method="post" action="/admin/users/{{ user_record.id }}/stores">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <select name="store_ids" multiple>
+            {% for store in stores %}
+            <option value="{{ store.id }}"
+                {% if user_record.memberships|selectattr('store_id', 'equalto', store.id)|list %}selected{% endif %}>{{ store.display_name }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn" type="submit">Save stores</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

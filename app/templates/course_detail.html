@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ course.title }}</h2>
+<p class="muted">{{ course.summary }}</p>
+{% if enrollment %}
+<p>Status: {{ 'Completed' if enrollment.completed else 'In progress' }}</p>
+{% else %}
+<form method="post" action="/courses/{{ course.id }}/enroll">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <button class="btn" type="submit">Enroll in course</button>
+</form>
+{% endif %}
+<h3>Lessons</h3>
+{% for module in course.modules %}
+<div class="card" style="margin-bottom:1rem;">
+    <h4>{{ module.title }}</h4>
+    <ul>
+        {% for lesson in module.lessons %}
+        <li>
+            <strong>{{ lesson.title }}</strong>
+            {% if enrollment %}
+            <form method="post" action="/lessons/{{ lesson.id }}/complete" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                {% if lesson.id in completed_lessons %}
+                <span class="muted">Completed</span>
+                {% else %}
+                <button class="btn" type="submit">Mark complete</button>
+                {% endif %}
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endfor %}
+{% if enrollment and enrollment.completed %}
+<a class="btn" href="/courses/{{ course.id }}/certificate">Download certificate</a>
+{% endif %}
+{% endblock %}

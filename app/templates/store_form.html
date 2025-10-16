@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{% if mode == 'new' %}Create store{% else %}Edit store{% endif %}</h2>
+<form method="post" class="card" style="max-width:520px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label for="name">Name</label>
+    <input id="name" name="name" value="{{ store.display_name if store else '' }}" required />
+    <label for="code">Code</label>
+    <input id="code" name="code" value="{{ store.code if store else '' }}" required />
+    <label for="region">Region</label>
+    <input id="region" name="region" value="{{ store.region if store else '' }}" required />
+    <button class="btn" type="submit">Save</button>
+</form>
+{% endblock %}

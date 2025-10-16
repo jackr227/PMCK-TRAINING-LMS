@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 style="font-size:2rem; margin-bottom:0.5rem;">One front door for all PMCK brands</h2>
+<p class="muted" style="margin-bottom:2rem; max-width:640px;">
+    Select your brand to enter the training and operations workspace. Themes, permissions, and
+    assignments update instantly per brand while sharing the same global platform.
+</p>
+<div class="grid columns-3">
+    {% for brand in brands %}
+    <a href="/brand/{{ brand.slug }}" class="card" style="text-decoration:none; color:inherit;">
+        <div style="font-size:2rem;">{{ brand.emoji or '🏷️' }}</div>
+        <h3 style="margin:0.5rem 0;">{{ brand.display_name }}</h3>
+        <p class="muted">{{ brand.tone_greeting }}</p>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

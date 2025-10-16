@@ -22,15 +22,8 @@ if not exist %PYTHON_BIN% (
     exit /b 1
 )
 
-echo Detecting Python version...
-for /f "usebackq tokens=1,2*" %%a in (`"%PYTHON_BIN%" -c "import sys; print(sys.version.split()[0])"`) do (
-    set "PY_VERSION=%%a"
-)
-echo Using Python %PY_VERSION% located at %PYTHON_BIN%
-
 echo Upgrading pip, setuptools, and wheel...
 %PYTHON_BIN% -m pip install --upgrade pip setuptools wheel
-
 if %errorlevel% neq 0 (
     echo Failed to upgrade pip.
     echo.
@@ -38,19 +31,34 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo Installing PMCK Training dependencies (preferring prebuilt wheels)...
+echo Installing PMCK Training dependencies...
 %PYTHON_BIN% -m pip install --upgrade --prefer-binary -r requirements.txt
-
 if %errorlevel% neq 0 (
-    echo Failed to install dependencies. Review the messages above for details.
-    echo If you are running Python 3.13, ensure you are using the latest release so wheel packages are available.
-    echo You can also install the Rust toolchain from https://rustup.rs/ if a package falls back to source builds.
+    echo Dependency installation failed. See the messages above for details.
     echo.
     pause
     exit /b 1
 )
 
-echo Setup complete. Run run_pmck_training.bat to start the server.
+echo Seeding demo data...
+%PYTHON_BIN% run_pmck_training.py --seed-only
+if %errorlevel% neq 0 (
+    echo Seeding failed. Resolve the issue and run this setup again.
+    echo.
+    pause
+    exit /b 1
+)
+
+echo Verifying /health endpoint...
+%PYTHON_BIN% run_pmck_training.py --health-check
+if %errorlevel% neq 0 (
+    echo Health check failed. Confirm dependencies are installed correctly.
+    echo.
+    pause
+    exit /b 1
+)
+
+echo Setup complete. Double-click run_pmck_training.bat to launch the server.
 echo.
 pause
 endlocal
