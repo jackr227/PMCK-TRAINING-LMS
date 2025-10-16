@@ -34,14 +34,43 @@ def ensure_dependencies() -> None:  # pragma: no cover - Windows helper
         )
 
 
+def _schema_out_of_date(engine, metadata) -> bool:
+    """Return True when any declared table is missing or lacks columns."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    if not existing_tables:
+        return False
+
+    for name, table in metadata.tables.items():
+        if name not in existing_tables:
+            return True
+        declared_columns = {column.name for column in table.columns}
+        actual_columns = {column_info["name"] for column_info in inspector.get_columns(name)}
+        if not declared_columns.issubset(actual_columns):
+            return True
+    return False
+
+
 def seed_database() -> bool:
     ensure_dependencies()
     from app.database import Base, engine, session_scope
     from app.seed import seed_demo
 
+    schema_reset = False
+    if _schema_out_of_date(engine, Base.metadata):
+        print("Detected outdated database schema. Rebuilding tables...")
+        Base.metadata.drop_all(bind=engine)
+        schema_reset = True
+
     Base.metadata.create_all(bind=engine)
     with session_scope() as session:
-        return seed_demo(session)
+        seeded = seed_demo(session)
+        if schema_reset and not seeded:
+            # If the database was reset we expect fresh data; force a seed.
+            seeded = seed_demo(session)
+        return seeded
 
 
 def run_health_check() -> None:
