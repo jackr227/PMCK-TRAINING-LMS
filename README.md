@@ -23,12 +23,21 @@ A FastAPI-based learning management platform that implements the PMCK Training v
    pip install -r requirements.txt
    ```
 
-2. **Run the API**
+2. **One-file quickstart**
+   ```bash
+   python run_pmck_training.py
+   ```
+
+   The script creates a SQLite database (`pmck_training.db`), seeds demo data, prints
+   ready-to-use account IDs, and starts the FastAPI server on
+   `http://127.0.0.1:8000`.
+
+3. **Run manually (optional)**
    ```bash
    uvicorn app.main:app --reload
    ```
 
-3. **Authenticate requests**
+4. **Authenticate requests**
 
    Supply an `X-User-Id` header that corresponds to a user in the database. Bootstrapping usually starts by inserting a Super Admin via the SQLite database:
    ```sql
@@ -36,9 +45,21 @@ A FastAPI-based learning management platform that implements the PMCK Training v
    VALUES (1, 'Super', 'Admin', 'super@pmck.local', 'super_admin', 1);
    ```
 
-4. **Explore the API**
+5. **Explore the API**
 
-   Visit `http://127.0.0.1:8000/docs` for interactive Swagger documentation. Use the header box at the top-right to set `X-User-Id`.
+   Visit `http://127.0.0.1:8000/docs` for interactive Swagger documentation. Use the
+   header box at the top-right to set `X-User-Id`.
+
+6. **Quick demo calls**
+
+   ```bash
+   curl -H "X-User-Id: 1" http://127.0.0.1:8000/brands
+   curl -H "X-User-Id: 4" http://127.0.0.1:8000/courses
+   ```
+
+   Demo accounts seeded by `run_pmck_training.py`:
+   `1` Super Admin, `2` Brand Admin, `3` Area Manager, `4` Operator,
+   `5` Trainer, `6` Trainee.
 
 ## Database
 
