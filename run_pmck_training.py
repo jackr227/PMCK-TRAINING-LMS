@@ -7,23 +7,46 @@ only the first time you launch it.
 
 from __future__ import annotations
 
+import importlib
 from datetime import date
 from textwrap import dedent
 
-try:
-    import uvicorn
-except ModuleNotFoundError as exc:  # pragma: no cover - Windows convenience path
-    missing = exc.name or "a required package"
-    print(
-        dedent(
-            f"""
-            Missing dependency: {missing}.
-            Run setup_pmck_training.bat (Windows) or `python -m pip install -r requirements.txt`
-            to install the required packages, then launch this script again.
-            """
-        ).strip()
-    )
-    raise SystemExit(1)
+
+REQUIRED_MODULES = {
+    "uvicorn": "Uvicorn",
+    "fastapi": "FastAPI",
+    "sqlalchemy": "SQLAlchemy",
+    "itsdangerous": "itsdangerous",
+    "jinja2": "Jinja2",
+    "pydantic": "Pydantic",
+}
+
+
+def ensure_dependencies() -> None:  # pragma: no cover - Windows convenience path
+    missing = []
+    for module_name, label in REQUIRED_MODULES.items():
+        try:
+            importlib.import_module(module_name)
+        except ModuleNotFoundError:
+            missing.append(label)
+
+    if missing:
+        packages = ", ".join(missing)
+        print(
+            dedent(
+                f"""
+                Missing dependencies detected: {packages}.
+                Run setup_pmck_training.bat (Windows) or `python -m pip install -r requirements.txt`
+                to install the required packages, then launch this script again.
+                """
+            ).strip()
+        )
+        raise SystemExit(1)
+
+
+ensure_dependencies()
+
+import uvicorn
 
 from sqlalchemy import select
 
