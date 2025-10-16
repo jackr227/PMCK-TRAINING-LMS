@@ -10,7 +10,21 @@ from __future__ import annotations
 from datetime import date
 from textwrap import dedent
 
-import uvicorn
+try:
+    import uvicorn
+except ModuleNotFoundError as exc:  # pragma: no cover - Windows convenience path
+    missing = exc.name or "a required package"
+    print(
+        dedent(
+            f"""
+            Missing dependency: {missing}.
+            Run setup_pmck_training.bat (Windows) or `python -m pip install -r requirements.txt`
+            to install the required packages, then launch this script again.
+            """
+        ).strip()
+    )
+    raise SystemExit(1)
+
 from sqlalchemy import select
 
 from app.database import Base, engine, session_scope

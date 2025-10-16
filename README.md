@@ -18,8 +18,8 @@ A FastAPI-based learning management platform that implements the PMCK Training v
 
 ### Windows (double-click setup)
 
-1. Run `setup_pmck_training.bat`. The script checks for Python 3.10+, creates a `.venv`, and installs dependencies.
-2. Launch `run_pmck_training.bat`. A terminal will open, seed demo data (if needed), and start the FastAPI server on `http://127.0.0.1:8000`.
+1. Run `setup_pmck_training.bat`. The script checks for Python 3.10+, reports the interpreter it finds, upgrades pip/setuptools/wheel, and installs dependencies while preferring prebuilt wheels (handy for Python 3.13).
+2. Launch `run_pmck_training.bat`. A terminal will open, seed demo data (if needed), and start the FastAPI server on `http://127.0.0.1:8000`. If any dependency is missing, the launcher now explains how to finish setup instead of crashing with a Python traceback.
 3. Open that URL in your browser. The new visual dashboard lets you pick a seeded demo user and explore each role’s permissions without touching headers or scripts.
 
 ### macOS / Linux
