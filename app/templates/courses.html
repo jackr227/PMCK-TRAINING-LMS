@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Courses</h2>
+<div class="actions" style="margin-bottom:1rem;">
+    <a class="btn" href="/courses">Refresh</a>
+    {% if active_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR, UserRole.TRAINER] %}
+    <a class="btn" href="/courses/create">Create course</a>
+    {% endif %}
+</div>
+<div class="actions" style="margin-bottom:1.5rem;">
+    {% for key, values in tabs.items() %}
+    <a href="/courses?tab={{ key }}" class="btn" style="background: {{ 'var(--accent)' if tab==key else 'rgba(255,255,255,0.12)' }}; color: {{ 'black' if tab==key else 'white' }};">{{ key|title }}</a>
+    {% endfor %}
+</div>
+{% if courses %}
+<table>
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Visibility</th>
+            <th>Owner</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for course in courses %}
+        <tr>
+            <td>{{ course.title }}</td>
+            <td>{{ course.visibility.value|title }}</td>
+            <td>{{ course.owner.display_name if course.owner else '—' }}</td>
+            <td><a class="btn" href="/courses/{{ course.id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No courses in this view.</p>
+{% endif %}
+{% endblock %}

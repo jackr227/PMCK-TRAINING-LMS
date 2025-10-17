@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Stores</h2>
+<div class="actions" style="margin-bottom:1rem;">
+    <a class="btn" href="/admin/stores/new">New store</a>
+    <a class="btn" href="/admin/stores?format=csv">Export CSV</a>
+</div>
+{% if stores %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Code</th>
+            <th>Region</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for store in stores %}
+        <tr>
+            <td>{{ store.display_name }}</td>
+            <td>{{ store.code }}</td>
+            <td>{{ store.region }}</td>
+            <td>
+                <a class="btn" href="/admin/stores/{{ store.id }}/edit">Edit</a>
+                <form method="post" action="/admin/stores/{{ store.id }}/delete" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <button class="btn" type="submit" style="background:#fca5a5;">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No stores in scope.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 style="margin-bottom:1rem;">{{ active_user.display_name }} dashboard</h2>
+<div class="grid columns-3" style="margin-bottom:2rem;">
+    <div class="card stat">
+        <div class="stat-number">{{ stats.required }}</div>
+        <div>Required</div>
+    </div>
+    <div class="card stat">
+        <div class="stat-number">{{ stats.assigned }}</div>
+        <div>Assigned</div>
+    </div>
+    <div class="card stat">
+        <div class="stat-number">{{ stats.completed }}</div>
+        <div>Completed</div>
+    </div>
+</div>
+<h3>In progress</h3>
+{% if in_progress %}
+<ul>
+    {% for course in in_progress %}
+    <li><a href="/courses/{{ course.id }}">{{ course.title }}</a> — {{ course.summary }}</li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="muted">No courses in progress.</p>
+{% endif %}
+<h3>Completed</h3>
+{% if completed_courses %}
+<ul>
+    {% for course in completed_courses %}
+    <li>{{ course.title }}</li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="muted">Complete courses to unlock certificates.</p>
+{% endif %}
+{% endblock %}

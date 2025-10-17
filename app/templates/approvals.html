@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Pending memberships</h2>
+{% if pending %}
+<table>
+    <thead>
+        <tr>
+            <th>User</th>
+            <th>Store</th>
+            <th>Requested role</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for membership in pending %}
+        <tr>
+            <td>{{ membership.user.display_name }}</td>
+            <td>{{ membership.store.display_name }}</td>
+            <td>{{ membership.role.value }}</td>
+            <td>
+                <form method="post" action="/approvals/{{ membership.id }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="decision" value="approve" />
+                    <button class="btn" type="submit">Approve</button>
+                </form>
+                <form method="post" action="/approvals/{{ membership.id }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="decision" value="reject" />
+                    <button class="btn" type="submit" style="background:#fca5a5;">Reject</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No pending approvals.</p>
+{% endif %}
+{% endblock %}

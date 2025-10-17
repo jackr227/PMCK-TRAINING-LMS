@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Log in to {{ brand.display_name }}</h2>
+<p class="muted" style="margin-bottom:1rem;">Use your brand credentials. Brand switching is enforced at login.</p>
+<form method="post" class="card" style="max-width:420px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required />
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required />
+    {% if error %}
+    <p style="color:#fda4af;">{{ error }}</p>
+    {% endif %}
+    <button class="btn" type="submit">Sign in</button>
+</form>
+{% endblock %}

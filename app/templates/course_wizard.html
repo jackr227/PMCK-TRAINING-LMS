@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Course creator</h2>
+<p class="muted">Step {{ step }} of 3</p>
+{% if step == 1 %}
+<form method="post" class="card" style="max-width:640px;">
+    <input type="hidden" name="step" value="1" />
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label for="title">Title</label>
+    <input id="title" name="title" value="{{ wizard.basics.title if wizard.basics else '' }}" required />
+    <label for="summary">Summary</label>
+    <textarea id="summary" name="summary" rows="3" required>{{ wizard.basics.summary if wizard.basics else '' }}</textarea>
+    <label for="description">Description</label>
+    <textarea id="description" name="description" rows="4">{{ wizard.basics.description if wizard.basics else '' }}</textarea>
+    <label for="cover">Cover image URL</label>
+    <input id="cover" name="cover_image" value="{{ wizard.basics.cover_image if wizard.basics else '' }}" />
+    <label for="certificate">Certificate template</label>
+    <input id="certificate" name="certificate" value="{{ wizard.basics.certificate if wizard.basics else '' }}" />
+    <button class="btn" type="submit">Next: audience</button>
+</form>
+{% elif step == 2 %}
+<form method="post" class="card">
+    <input type="hidden" name="step" value="2" />
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label>Visibility</label>
+    <select name="visibility">
+        {% for option in visibility_options %}
+        <option value="{{ option.value }}" {% if wizard.visibility == option.value %}selected{% endif %}>{{ option.value|title }}</option>
+        {% endfor %}
+    </select>
+    <h3>Include</h3>
+    <label>Brands</label>
+    <select name="include_brands" multiple>
+        {% for b in scoped_brands %}
+        <option value="{{ b.id }}" {% if b.id in wizard.includes.brands %}selected{% endif %}>{{ b.display_name }}</option>
+        {% endfor %}
+    </select>
+    <label>Stores</label>
+    <select name="include_stores" multiple>
+        {% for store in stores %}
+        <option value="{{ store.id }}" {% if store.id in wizard.includes.stores %}selected{% endif %}>{{ store.display_name }}</option>
+        {% endfor %}
+    </select>
+    <label>Roles</label>
+    <select name="include_roles" multiple>
+        {% for role in UserRole %}
+        <option value="{{ role.value }}" {% if role.value in wizard.includes.roles %}selected{% endif %}>{{ role.value|title }}</option>
+        {% endfor %}
+    </select>
+    <label>Flags</label>
+    <select name="include_flags" multiple>
+        {% for flag in flags %}
+        <option value="{{ flag.id }}" {% if flag.id in wizard.includes.flags %}selected{% endif %}>{{ flag.name }}</option>
+        {% endfor %}
+    </select>
+    <label>Users</label>
+    <select name="include_users" multiple>
+        {% for u in users %}
+        <option value="{{ u.id }}" {% if u.id in wizard.includes.users %}selected{% endif %}>{{ u.display_name }}</option>
+        {% endfor %}
+    </select>
+    <h3>Exclude</h3>
+    <label>Stores</label>
+    <select name="exclude_stores" multiple>
+        {% for store in stores %}
+        <option value="{{ store.id }}" {% if store.id in wizard.excludes.stores %}selected{% endif %}>{{ store.display_name }}</option>
+        {% endfor %}
+    </select>
+    <label>Roles</label>
+    <select name="exclude_roles" multiple>
+        {% for role in UserRole %}
+        <option value="{{ role.value }}" {% if role.value in wizard.excludes.roles %}selected{% endif %}>{{ role.value|title }}</option>
+        {% endfor %}
+    </select>
+    <label>Users</label>
+    <select name="exclude_users" multiple>
+        {% for u in users %}
+        <option value="{{ u.id }}" {% if u.id in wizard.excludes.users %}selected{% endif %}>{{ u.display_name }}</option>
+        {% endfor %}
+    </select>
+    <button class="btn" type="submit">Next: requirements</button>
+</form>
+{% else %}
+<form method="post" class="card" style="max-width:540px;">
+    <input type="hidden" name="step" value="3" />
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label><input type="checkbox" name="required" {% if wizard.requirements.required != False %}checked{% endif %}/> Required by default</label>
+    <label for="due_date">Due date (optional)</label>
+    <input id="due_date" name="due_date" type="date" value="{{ wizard.requirements.due_date if wizard.requirements else '' }}" />
+    <label><input type="checkbox" name="notify" {% if wizard.requirements.notify %}checked{% endif %}/> Notify learners on publish</label>
+    <p class="muted">Audience preview: {{ wizard.preview_total or '0' }} people.</p>
+    <button class="btn" type="submit">Publish course</button>
+</form>
+{% endif %}
+{% endblock %}

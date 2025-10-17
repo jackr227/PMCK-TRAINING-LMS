@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Assignments manager</h2>
+<p class="muted" style="margin-bottom:1.5rem;">Adjust required toggles and due dates. Audience clamps are enforced automatically.</p>
+{% for course in courses %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <h3>{{ course.title }}</h3>
+    {% if course.assignments %}
+    <table>
+        <thead>
+            <tr>
+                <th>Target</th>
+                <th>Type</th>
+                <th>Required</th>
+                <th>Due date</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for assignment in course.assignments %}
+            <tr>
+                <td>{{ assignment.target_id }}</td>
+                <td>{{ assignment.target_type.value }}</td>
+                <td>{{ 'Yes' if assignment.required else 'No' }}</td>
+                <td>{{ assignment.due_date or '—' }}</td>
+                <td>
+                    {% if not assignment.is_exclusion %}
+                    <form method="post" action="/assignments/{{ assignment.id }}" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                        <label><input type="checkbox" name="required" {% if assignment.required %}checked{% endif %}/> required</label>
+                        <input type="date" name="due_date" value="{{ assignment.due_date }}" />
+                        <button class="btn" type="submit">Save</button>
+                    </form>
+                    {% else %}
+                    <span class="muted">Exclusion</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No assignments yet.</p>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Certificate</title>
+    <style>
+        body {
+            font-family: "Segoe UI", sans-serif;
+            background: #f7fafc;
+            padding: 3rem;
+            color: #111827;
+        }
+        .certificate {
+            border: 6px solid #111827;
+            padding: 2rem;
+            max-width: 720px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 0.5rem;
+            font-size: 2.2rem;
+        }
+        h2 {
+            margin-top: 0;
+            font-size: 1.6rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="certificate">
+        <h1>{{ course.title }}</h1>
+        <p>This certifies that</p>
+        <h2>{{ user.display_name }}</h2>
+        <p>Completed the course on {{ completed_at.date() }}.</p>
+    </div>
+</body>
+</html>

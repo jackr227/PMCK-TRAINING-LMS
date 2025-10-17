@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Reports</h2>
+<div class="actions" style="margin-bottom:1rem;">
+    <a class="btn" href="/reports?format=csv">Export store coverage</a>
+</div>
+<div class="grid columns-3" style="margin-bottom:2rem;">
+    <div class="card stat">
+        <div class="stat-number">{{ summary.users }}</div>
+        <div>Scoped users</div>
+    </div>
+    <div class="card stat">
+        <div class="stat-number">{{ summary.courses }}</div>
+        <div>Courses</div>
+    </div>
+    <div class="card stat">
+        <div class="stat-number">{{ summary.completed }}</div>
+        <div>Completions</div>
+    </div>
+</div>
+{% if stores %}
+<table>
+    <thead>
+        <tr>
+            <th>Store</th>
+            <th>Active users</th>
+            <th>Completed courses</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in stores %}
+        <tr>
+            <td>{{ row.store.display_name }}</td>
+            <td>{{ row.active_users }}</td>
+            <td>{{ row.completed_courses }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No store data available.</p>
+{% endif %}
+{% endblock %}

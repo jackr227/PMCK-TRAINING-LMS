@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Users</h2>
+<div class="actions" style="margin-bottom:1rem;">
+    <a class="btn" href="/admin/users/new">New user</a>
+    <a class="btn" href="/admin/users?format=csv">Export CSV</a>
+</div>
+{% if users %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Email</th>
+            <th>Stores</th>
+            <th>Status</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.display_name }}</td>
+            <td>{{ user.role.value }}</td>
+            <td>{{ user.email }}</td>
+            <td>
+                {% for membership in user.memberships %}
+                    {{ membership.store.display_name }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </td>
+            <td>{{ 'Disabled' if user.disabled else 'Active' }}</td>
+            <td>
+                <a class="btn" href="/admin/users/{{ user.id }}/edit">Edit</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No users in scope.</p>
+{% endif %}
+{% endblock %}

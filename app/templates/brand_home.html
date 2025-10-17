@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 style="font-size:2rem; margin-bottom:0.25rem;">{{ brand.display_name }} training hub</h2>
+<p class="muted" style="margin-bottom:1.5rem;">{{ brand.tone_cta }}</p>
+<div class="grid columns-3" style="margin-bottom:2rem;">
+    {% for link in quick_links %}
+    <a href="{{ link.href }}" class="card" style="text-decoration:none; color:inherit;">
+        <h3 style="margin:0;">{{ link.label }}</h3>
+        <p class="muted">Jump to {{ link.label }} for this brand.</p>
+    </a>
+    {% endfor %}
+</div>
+{% if scoped_stores %}
+<h3>Your stores</h3>
+<ul>
+    {% for store in scoped_stores %}
+    <li>{{ store.display_name }} &mdash; {{ store.region }}</li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="muted">No store assignments yet. Super Admins can map stores inside the Users area.</p>
+{% endif %}
+{% endblock %}
